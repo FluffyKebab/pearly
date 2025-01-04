@@ -2,6 +2,7 @@ package tcp
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -18,8 +19,12 @@ func getAvilablePort() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-
-	return a.Port, nil
+	l, err := net.ListenTCP("tcp", a)
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
 func TestTCPTransport(t *testing.T) {
@@ -44,6 +49,8 @@ func TestTCPTransport(t *testing.T) {
 
 	msg := "helo"
 	conn.Write([]byte(msg))
+	err = conn.Close()
+	require.NoError(t, err)
 
 	timeoutCtx, cancelCtx := context.WithDeadline(context.Background(), time.Now().Add(3*time.Second))
 	defer cancelCtx()
@@ -52,9 +59,11 @@ func TestTCPTransport(t *testing.T) {
 	case <-timeoutCtx.Done():
 		t.Fatalf("timeout")
 	case conn := <-connChan:
+		fmt.Println("herjo")
 		buf := new(strings.Builder)
 		_, err := io.Copy(buf, conn)
 		require.NoError(t, err)
+		require.Equal(t, msg, buf.String())
 	case err := <-errChan:
 		require.NoError(t, err)
 	}
