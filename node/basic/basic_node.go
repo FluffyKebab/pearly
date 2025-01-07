@@ -28,10 +28,25 @@ func New(t transport.Transport) *Node {
 }
 
 func (n *Node) Run(ctx context.Context) (<-chan error, error) {
-	connChan, errChan, err := n.transport.Listen(ctx)
+	connChan, transportErrChan, err := n.transport.Listen(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	errChan := make(chan error)
+	go func() {
+		for {
+			select {
+			case err, ok := <-transportErrChan:
+				if !ok {
+					return
+				}
+				errChan <- err
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	go func() {
 		for {
@@ -39,6 +54,12 @@ func (n *Node) Run(ctx context.Context) (<-chan error, error) {
 			case conn := <-connChan:
 				if n.connHandler != nil {
 					n.connHandler(conn)
+					continue
+				}
+
+				err := n.protocolMuxer.HandleConn(conn)
+				if err != nil {
+					errChan <- err
 				}
 			case <-ctx.Done():
 				return

@@ -30,3 +30,7 @@ func (m Muxer) RegisterProtocol(protoID string, handler func(transport.Conn)) {
 func (m Muxer) SelectProtocol(protoID string, c transport.Conn) error {
 	return ms.SelectProtoOrFail[string](protoID, c)
 }
+
+func (m Muxer) HandleConn(c transport.Conn) error {
+	return m.mux.Handle(c)
+}
