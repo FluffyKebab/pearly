@@ -43,10 +43,7 @@ func TestPing(t *testing.T) {
 	_, port2, _, errChan2 := createNode(t, ctx)
 
 	n2ID := "2"
-	err := n1.RegisterPeer(peer.Peer{
-		ID:         n2ID,
-		PublicAddr: "localhost:" + port2,
-	})
+	err := n1.RegisterPeer(peer.New(n2ID, "localhost:"+port2))
 	require.NoError(t, err)
 
 	result, err := callFunc(ctx, n2ID)

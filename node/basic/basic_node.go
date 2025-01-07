@@ -73,7 +73,7 @@ func (n *Node) Run(ctx context.Context) (<-chan error, error) {
 func (n *Node) DialPeer(ctx context.Context, ID string) (transport.Conn, error) {
 	var p *peer.Peer
 	for i := 0; i < len(n.peers); i++ {
-		if n.peers[i].ID == ID {
+		if n.peers[i].ID() == ID {
 			p = &n.peers[i]
 			break
 		}

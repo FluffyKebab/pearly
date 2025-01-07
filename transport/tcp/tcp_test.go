@@ -25,7 +25,7 @@ func TestTCPTransport(t *testing.T) {
 	connChan, errChan, err := server.Listen(context.Background())
 	require.NoError(t, err)
 
-	conn, err := client.Dial(context.Background(), peer.Peer{PublicAddr: "localhost:" + server.port})
+	conn, err := client.Dial(context.Background(), peer.New("", "localhost:"+server.port))
 	require.NoError(t, err)
 
 	msg := "helo"

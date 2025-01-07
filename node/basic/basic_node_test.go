@@ -45,10 +45,7 @@ func TestBesicNode(t *testing.T) {
 	})
 
 	node2ID := "2"
-	node1.RegisterPeer(peer.Peer{
-		ID:         node2ID,
-		PublicAddr: "localhost:" + port2,
-	})
+	node1.RegisterPeer(peer.New(node2ID, "localhost:"+port2))
 
 	conn1, err := node1.DialPeer(ctx, node2ID)
 	require.NoError(t, err)
