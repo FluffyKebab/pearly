@@ -13,20 +13,21 @@ type Transport struct {
 	port string
 }
 
+var _ transport.Transport = Transport{}
+
 func New(port string) Transport {
 	return Transport{
 		port: port,
 	}
 }
 
-func (t Transport) Listen(ctx context.Context) (<-chan transport.Conn, <-chan error) {
+func (t Transport) Listen(ctx context.Context) (<-chan transport.Conn, <-chan error, error) {
 	connChan := make(chan transport.Conn)
 	errChan := make(chan error)
 
 	listener, err := net.Listen("tcp", "localhost:"+t.port)
 	if err != nil {
-		errChan <- err
-		return nil, errChan
+		return nil, nil, err
 	}
 
 	go func() {
@@ -50,7 +51,7 @@ func (t Transport) Listen(ctx context.Context) (<-chan transport.Conn, <-chan er
 		}
 	}()
 
-	return connChan, errChan
+	return connChan, errChan, nil
 }
 
 func (t Transport) Dial(ctx context.Context, p peer.Peer) (transport.Conn, error) {

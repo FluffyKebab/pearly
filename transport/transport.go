@@ -14,6 +14,6 @@ type Conn interface {
 }
 
 type Transport interface {
-	Listen(ctx context.Context) (<-chan Conn, <-chan error)
+	Listen(ctx context.Context) (<-chan Conn, <-chan error, error)
 	Dial(context.Context, peer.Peer) (Conn, error)
 }

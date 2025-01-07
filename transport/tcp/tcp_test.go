@@ -2,47 +2,28 @@ package tcp
 
 import (
 	"context"
-	"fmt"
 	"io"
-	"net"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/FluffyKebab/pearly/peer"
+	"github.com/FluffyKebab/pearly/testutil"
 	"github.com/stretchr/testify/require"
 )
 
-func getAvilablePort() (int, error) {
-	a, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		return 0, err
-	}
-	l, err := net.ListenTCP("tcp", a)
-	if err != nil {
-		return 0, err
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
-}
-
 func TestTCPTransport(t *testing.T) {
-	port1, err := getAvilablePort()
+	port1, err := testutil.GetAvilablePort()
 	require.NoError(t, err)
 
-	port2, err := getAvilablePort()
+	port2, err := testutil.GetAvilablePort()
 	require.NoError(t, err)
 
-	client := New(strconv.Itoa(port1))
-	server := New(strconv.Itoa(port2))
+	client := New(port1)
+	server := New(port2)
 
-	connChan, errChan := server.Listen(context.Background())
-	select {
-	case err := <-errChan:
-		require.NoError(t, err)
-	default:
-	}
+	connChan, errChan, err := server.Listen(context.Background())
+	require.NoError(t, err)
 
 	conn, err := client.Dial(context.Background(), peer.Peer{PublicAddr: "localhost:" + server.port})
 	require.NoError(t, err)
@@ -59,7 +40,6 @@ func TestTCPTransport(t *testing.T) {
 	case <-timeoutCtx.Done():
 		t.Fatalf("timeout")
 	case conn := <-connChan:
-		fmt.Println("herjo")
 		buf := new(strings.Builder)
 		_, err := io.Copy(buf, conn)
 		require.NoError(t, err)
