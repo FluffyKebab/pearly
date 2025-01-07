@@ -6,20 +6,24 @@ import (
 
 	"github.com/FluffyKebab/pearly/node"
 	"github.com/FluffyKebab/pearly/peer"
+	"github.com/FluffyKebab/pearly/protocolmux"
+	"github.com/FluffyKebab/pearly/protocolmux/multistream"
 	"github.com/FluffyKebab/pearly/transport"
 )
 
 type Node struct {
-	transport   transport.Transport
-	connHandler func(transport.Conn)
-	peers       []peer.Peer
+	transport     transport.Transport
+	connHandler   func(transport.Conn)
+	peers         []peer.Peer
+	protocolMuxer protocolmux.Muxer
 }
 
 var _ node.Node = &Node{}
 
 func New(t transport.Transport) *Node {
 	return &Node{
-		transport: t,
+		transport:     t,
+		protocolMuxer: multistream.NewMuxer(),
 	}
 }
 
@@ -61,12 +65,26 @@ func (n *Node) DialPeer(ctx context.Context, ID string) (transport.Conn, error) 
 	return n.transport.Dial(ctx, *p)
 }
 
+func (n *Node) DialPeerUsingProcol(ctx context.Context, prtoID string, peerID string) (transport.Conn, error) {
+	c, err := n.DialPeer(ctx, peerID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = n.protocolMuxer.SelectProtocol(prtoID, c)
+	return c, err
+}
+
 func (n *Node) Transport() transport.Transport {
 	return n.transport
 }
 
 func (n *Node) SetConnHandler(handler func(transport.Conn)) {
 	n.connHandler = handler
+}
+
+func (n *Node) RegisterProtocol(protoID string, handler func(transport.Conn)) {
+	n.protocolMuxer.RegisterProtocol(protoID, handler)
 }
 
 func (n *Node) RegisterPeer(p peer.Peer) error {

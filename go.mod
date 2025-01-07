@@ -2,10 +2,14 @@ module github.com/FluffyKebab/pearly
 
 go 1.23.4
 
-require github.com/stretchr/testify v1.10.0
+require (
+	github.com/multiformats/go-multistream v0.6.0
+	github.com/stretchr/testify v1.10.0
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/multiformats/go-varint v0.0.6 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

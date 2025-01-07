@@ -9,11 +9,12 @@ import (
 
 type Node interface {
 	Transport() transport.Transport
+
 	SetConnHandler(handler func(transport.Conn))
+	RegisterPeer(peer.Peer) error
+	RegisterProtocol(protoID string, handler func(transport.Conn))
 
 	Run(context.Context) (<-chan error, error)
-	RegisterPeer(peer.Peer) error
 	DialPeer(ctx context.Context, ID string) (transport.Conn, error)
-
-	//AddProtocolHandler(protoID string, handler func(transport.Conn))
+	DialPeerUsingProcol(ctx context.Context, prtoID string, peerID string) (transport.Conn, error)
 }
