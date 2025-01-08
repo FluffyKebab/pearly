@@ -17,4 +17,9 @@ type Node interface {
 	Run(context.Context) (<-chan error, error)
 	DialPeer(ctx context.Context, ID string) (transport.Conn, error)
 	DialPeerUsingProcol(ctx context.Context, prtoID string, peerID string) (transport.Conn, error)
+	ChangeProtocol(ctx context.Context, protoID string, conn transport.Conn) error
+}
+
+type Encrypted interface {
+	DialPeerEncrypted(ctx context.Context, ID string) (transport.Conn, error)
 }

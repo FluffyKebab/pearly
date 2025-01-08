@@ -46,9 +46,8 @@ func TestPing(t *testing.T) {
 	err := n1.RegisterPeer(peer.New(n2ID, "localhost:"+port2))
 	require.NoError(t, err)
 
-	result, err := callFunc(ctx, n2ID)
+	_, err = callFunc(ctx, n2ID)
 	require.NoError(t, err)
-	t.Log(result)
 
 	select {
 	case err := <-testutil.CombineErrChan(errChan1, errChan2):

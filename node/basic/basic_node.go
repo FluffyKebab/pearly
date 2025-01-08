@@ -3,6 +3,7 @@ package basic
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/FluffyKebab/pearly/node"
 	"github.com/FluffyKebab/pearly/peer"
@@ -52,15 +53,22 @@ func (n *Node) Run(ctx context.Context) (<-chan error, error) {
 		for {
 			select {
 			case conn := <-connChan:
-				if n.connHandler != nil {
-					n.connHandler(conn)
-					continue
+				for {
+					if n.connHandler != nil {
+						n.connHandler(conn)
+					} else {
+						err := n.protocolMuxer.HandleConn(conn)
+						if err != nil {
+							errChan <- err
+						}
+					}
+
+					// break if conn is closed.
+					if _, err := conn.Read(make([]byte, 1)); err == io.EOF {
+						break
+					}
 				}
 
-				err := n.protocolMuxer.HandleConn(conn)
-				if err != nil {
-					errChan <- err
-				}
 			case <-ctx.Done():
 				return
 			}
@@ -94,6 +102,10 @@ func (n *Node) DialPeerUsingProcol(ctx context.Context, prtoID string, peerID st
 
 	err = n.protocolMuxer.SelectProtocol(prtoID, c)
 	return c, err
+}
+
+func (n *Node) ChangeProtocol(_ context.Context, protoID string, conn transport.Conn) error {
+	return n.protocolMuxer.SelectProtocol(protoID, conn)
 }
 
 func (n *Node) Transport() transport.Transport {
