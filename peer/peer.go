@@ -7,7 +7,8 @@ type Peer interface {
 
 type Store interface {
 	AddPeer(Peer) error
-	GetClosestPeers(ID []byte, k int) []Peer
+	RemovePeer(Peer) error
+	GetClosestPeers(ID []byte, k int) ([]Peer, error)
 }
 
 type peer struct {

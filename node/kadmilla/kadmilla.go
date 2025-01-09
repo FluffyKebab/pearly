@@ -1,7 +1,5 @@
 package kadmilla
 
-import "github.com/FluffyKebab/pearly/node"
-
 /*
 protocols:
 	- kdmfindkey
@@ -13,8 +11,5 @@ protocols:
 		- send: key to be found, k
 		- recive: k closest nodes or final value
 
+RegisterFindKey(n node.Node, peerStore peer.PeerStore) FindKeyService
 */
-
-type DHT struct {
-	n node.Node
-}
