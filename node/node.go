@@ -11,15 +11,15 @@ type Node interface {
 	Transport() transport.Transport
 
 	SetConnHandler(handler func(transport.Conn))
-	RegisterPeer(peer.Peer) error
 	RegisterProtocol(protoID string, handler func(transport.Conn))
 
 	Run(context.Context) (<-chan error, error)
-	DialPeer(ctx context.Context, ID string) (transport.Conn, error)
-	DialPeerUsingProcol(ctx context.Context, prtoID string, peerID string) (transport.Conn, error)
+	DialPeer(ctx context.Context, p peer.Peer) (transport.Conn, error)
+	DialPeerUsingProcol(ctx context.Context, prtoID string, p peer.Peer) (transport.Conn, error)
 	ChangeProtocol(ctx context.Context, protoID string, conn transport.Conn) error
 }
 
-type Encrypted interface {
-	DialPeerEncrypted(ctx context.Context, ID string) (transport.Conn, error)
+type DHTHaver interface {
+	SetValue(key []byte, value []byte)
+	GetValue(key []byte, value []byte)
 }

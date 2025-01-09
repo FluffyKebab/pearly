@@ -44,10 +44,7 @@ func TestBesicNode(t *testing.T) {
 		msgRecived <- struct{}{}
 	})
 
-	node2ID := "2"
-	node1.RegisterPeer(peer.New(node2ID, "localhost:"+port2))
-
-	conn1, err := node1.DialPeer(ctx, node2ID)
+	conn1, err := node1.DialPeer(ctx, peer.New([]byte("2"), "localhost:"+port2))
 	require.NoError(t, err)
 
 	conn1.Write([]byte(msg))

@@ -29,7 +29,7 @@ func TestEncryptedTCP(t *testing.T) {
 	connChan, errChan, err := server.Listen(context.Background())
 	require.NoError(t, err)
 
-	conn, err := client.Dial(context.Background(), peer.New("", "localhost:"+port2))
+	conn, err := client.Dial(context.Background(), peer.New([]byte{}, "localhost:"+port2))
 	require.NoError(t, err)
 
 	msg := "no one will be able to read this exept you server!!"

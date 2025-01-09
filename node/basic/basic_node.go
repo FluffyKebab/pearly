@@ -2,7 +2,6 @@ package basic
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/FluffyKebab/pearly/node"
 	"github.com/FluffyKebab/pearly/peer"
@@ -15,7 +14,6 @@ type Node struct {
 	transport     transport.Transport
 	protocolMuxer protocolmux.Muxer
 	connHandler   func(transport.Conn)
-	peers         []peer.Peer
 }
 
 var _ node.Node = &Node{}
@@ -71,24 +69,12 @@ func (n *Node) Run(ctx context.Context) (<-chan error, error) {
 	return errChan, nil
 }
 
-func (n *Node) DialPeer(ctx context.Context, ID string) (transport.Conn, error) {
-	var p *peer.Peer
-	for i := 0; i < len(n.peers); i++ {
-		if n.peers[i].ID() == ID {
-			p = &n.peers[i]
-			break
-		}
-	}
-
-	if p == nil {
-		return nil, fmt.Errorf("peer not found")
-	}
-
-	return n.transport.Dial(ctx, *p)
+func (n *Node) DialPeer(ctx context.Context, p peer.Peer) (transport.Conn, error) {
+	return n.transport.Dial(ctx, p)
 }
 
-func (n *Node) DialPeerUsingProcol(ctx context.Context, prtoID string, peerID string) (transport.Conn, error) {
-	c, err := n.DialPeer(ctx, peerID)
+func (n *Node) DialPeerUsingProcol(ctx context.Context, prtoID string, p peer.Peer) (transport.Conn, error) {
+	c, err := n.DialPeer(ctx, p)
 	if err != nil {
 		return nil, err
 	}
@@ -111,9 +97,4 @@ func (n *Node) SetConnHandler(handler func(transport.Conn)) {
 
 func (n *Node) RegisterProtocol(protoID string, handler func(transport.Conn)) {
 	n.protocolMuxer.RegisterProtocol(protoID, handler)
-}
-
-func (n *Node) RegisterPeer(p peer.Peer) error {
-	n.peers = append(n.peers, p)
-	return nil
 }
