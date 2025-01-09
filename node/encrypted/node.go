@@ -18,6 +18,7 @@ type Node struct {
 	node.Node
 
 	idProtoService id.Service
+	connHandler    func(transport.Conn)
 	id             []byte
 	privateKey     *rsa.PrivateKey
 	publicKey      *rsa.PublicKey
@@ -43,21 +44,37 @@ func New(subNode node.Node) (*Node, error) {
 	return &Node{
 		subNode,
 		idProtoService,
+		nil,
 		nodeID.Sum(nil),
 		privKey,
 		pubKey,
 	}, nil
-
 }
 
 func (n *Node) DialPeerEncrypted(ctx context.Context, ID string) (transport.Conn, error) {
 	conn, err := n.DialPeer(ctx, ID)
+	if err != nil {
+		return nil, err
+	}
 
-	//TODO: do id proto to validate peer and get their public key.
+	// Do id protocol to validate peer and get their public key.
+	_, peerPubKeyBytes, err := n.idProtoService.Do(ctx, conn)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
 
-	return Conn{
-		conn: conn,
-	}, err
+	peerPubKey, err := x509.ParsePKCS1PublicKey(peerPubKeyBytes)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	return NewConn(conn, peerPubKey, n.privateKey), nil
+}
+
+func (n *Node) SetConnHandler(handler func(transport.Conn)) {
+
 }
 
 func generateKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {

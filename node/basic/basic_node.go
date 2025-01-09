@@ -3,7 +3,6 @@ package basic
 import (
 	"context"
 	"fmt"
-	"io"
 
 	"github.com/FluffyKebab/pearly/node"
 	"github.com/FluffyKebab/pearly/peer"
@@ -14,9 +13,9 @@ import (
 
 type Node struct {
 	transport     transport.Transport
+	protocolMuxer protocolmux.Muxer
 	connHandler   func(transport.Conn)
 	peers         []peer.Peer
-	protocolMuxer protocolmux.Muxer
 }
 
 var _ node.Node = &Node{}
@@ -53,20 +52,14 @@ func (n *Node) Run(ctx context.Context) (<-chan error, error) {
 		for {
 			select {
 			case conn := <-connChan:
-				for {
-					if n.connHandler != nil {
-						n.connHandler(conn)
-					} else {
-						err := n.protocolMuxer.HandleConn(conn)
-						if err != nil {
-							errChan <- err
-						}
-					}
+				if n.connHandler != nil {
+					n.connHandler(conn)
+					continue
+				}
 
-					// break if conn is closed.
-					if _, err := conn.Read(make([]byte, 1)); err == io.EOF {
-						break
-					}
+				err := n.protocolMuxer.HandleConn(conn)
+				if err != nil {
+					errChan <- err
 				}
 
 			case <-ctx.Done():

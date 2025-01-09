@@ -54,7 +54,7 @@ func TestEncryptedConn(t *testing.T) {
 	_, err = encryptedConn1to2.Write(msg)
 	require.NoError(t, err)
 
-	// simulate the data being sent form node 1 to 2
+	// Simulate the data being sent form node 1 to 2.
 	conn2To1.buffer = conn1To2.buffer
 	conn2To1.pos = conn1To2.pos
 
