@@ -8,20 +8,20 @@ import (
 	"github.com/FluffyKebab/pearly/transport"
 )
 
-func (t Transport) upgradeConn(c transport.Conn) (Conn, error) {
+func (t Transport) upgradeConn(c transport.Conn) (*Conn, error) {
 	err := sendPayload(c, t.id, t.publicKey)
 	if err != nil {
-		return Conn{}, err
+		return nil, err
 	}
 
 	peerData, err := recivePayload(c)
 	if err != nil {
-		return Conn{}, err
+		return nil, err
 	}
 
 	peerPubKey, err := x509.ParsePKCS1PublicKey(peerData.PublicKey)
 	if err != nil {
-		return Conn{}, err
+		return nil, err
 	}
 
 	return NewConn(c, peerPubKey, t.privateKey), nil

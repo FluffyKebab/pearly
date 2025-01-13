@@ -64,7 +64,7 @@ func (s Store) GetClosestPeers(key []byte, k int) ([]peer.Peer, error) {
 	}
 
 	// TODO: imprv
-	closest := make([]peerDistence, s.k)
+	closest := make([]peerDistence, k)
 	for _, bucket := range s.buckets {
 		for _, p := range bucket {
 			if p == nil {
@@ -113,8 +113,6 @@ func distenceBetween(id, key []byte) *big.Int {
 	for i := 0; i < len(key); i++ {
 		xored[i] = id[i] ^ key[i]
 	}
-
-	fmt.Println(xored)
 
 	return big.NewInt(0).SetBytes(xored)
 }

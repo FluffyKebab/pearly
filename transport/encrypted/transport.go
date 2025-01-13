@@ -78,6 +78,10 @@ func (t Transport) Dial(ctx context.Context, p peer.Peer) (transport.Conn, error
 	return t.upgradeConn(conn)
 }
 
+func (t Transport) ID() []byte {
+	return t.id
+}
+
 func generateKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 	key, err := rsa.GenerateKey(rand.Reader, _bitSize)
 	if err != nil {

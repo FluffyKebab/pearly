@@ -79,12 +79,12 @@ func (n *Node) DialPeerUsingProcol(ctx context.Context, prtoID string, p peer.Pe
 		return nil, err
 	}
 
-	err = n.protocolMuxer.SelectProtocol(prtoID, c)
+	err = n.protocolMuxer.SelectProtocol(ctx, prtoID, c)
 	return c, err
 }
 
-func (n *Node) ChangeProtocol(_ context.Context, protoID string, conn transport.Conn) error {
-	return n.protocolMuxer.SelectProtocol(protoID, conn)
+func (n *Node) ChangeProtocol(ctx context.Context, protoID string, conn transport.Conn) error {
+	return n.protocolMuxer.SelectProtocol(ctx, protoID, conn)
 }
 
 func (n *Node) Transport() transport.Transport {

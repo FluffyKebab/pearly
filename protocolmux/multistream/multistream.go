@@ -1,6 +1,8 @@
 package multistream
 
 import (
+	"context"
+	"fmt"
 	"io"
 
 	"github.com/FluffyKebab/pearly/protocolmux"
@@ -27,8 +29,19 @@ func (m Muxer) RegisterProtocol(protoID string, handler func(transport.Conn)) {
 	})
 }
 
-func (m Muxer) SelectProtocol(protoID string, c transport.Conn) error {
-	return ms.SelectProtoOrFail[string](protoID, c)
+func (m Muxer) SelectProtocol(ctx context.Context, protoID string, c transport.Conn) error {
+	done := make(chan error)
+	go func() {
+		err := ms.SelectProtoOrFail(protoID, c)
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("select protocol: %w", context.Canceled)
+	}
 }
 
 func (m Muxer) HandleConn(c transport.Conn) error {
