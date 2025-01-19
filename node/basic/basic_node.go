@@ -11,6 +11,7 @@ import (
 )
 
 type Node struct {
+	id            []byte
 	transport     transport.Transport
 	protocolMuxer protocolmux.Muxer
 	connHandler   func(transport.Conn)
@@ -18,8 +19,9 @@ type Node struct {
 
 var _ node.Node = &Node{}
 
-func New(t transport.Transport) *Node {
+func New(t transport.Transport, id []byte) *Node {
 	return &Node{
+		id:            id,
 		transport:     t,
 		protocolMuxer: multistream.NewMuxer(),
 	}
@@ -83,8 +85,8 @@ func (n *Node) DialPeerUsingProcol(ctx context.Context, prtoID string, p peer.Pe
 	return c, err
 }
 
-func (n *Node) ChangeProtocol(ctx context.Context, protoID string, conn transport.Conn) error {
-	return n.protocolMuxer.SelectProtocol(ctx, protoID, conn)
+func (n *Node) ID() []byte {
+	return n.id
 }
 
 func (n *Node) Transport() transport.Transport {

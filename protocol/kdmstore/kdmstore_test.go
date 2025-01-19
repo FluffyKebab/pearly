@@ -45,7 +45,7 @@ func createServiceNoEncryption(t *testing.T, ctx context.Context) (Service, peer
 
 	transport := tcp.New(port)
 	nodeID := makeRandomPeerID(t)
-	n := basic.New(transport)
+	n := basic.New(transport, nil)
 	hashtable := storage.NewHashtable()
 
 	errChan, err := n.Run(ctx)

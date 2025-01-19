@@ -88,7 +88,7 @@ func createService(t *testing.T, ctx context.Context) (Service, peer.Peer, <-cha
 	transport, err := encrypted.NewTransport(tcp.New(port))
 	require.NoError(t, err)
 
-	n := basic.New(transport)
+	n := basic.New(transport, transport.ID())
 	store := dhtpeer.NewStore(transport.ID(), 4)
 	hashtable := storage.NewHashtable()
 
@@ -109,7 +109,7 @@ func createServiceNoEncryption(t *testing.T, ctx context.Context) (Service, peer
 
 	transport := tcp.New(port)
 	nodeID := makeRandomPeerID(t)
-	n := basic.New(transport)
+	n := basic.New(transport, nil)
 	store := dhtpeer.NewStore(nodeID, 4)
 	hashtable := storage.NewHashtable()
 

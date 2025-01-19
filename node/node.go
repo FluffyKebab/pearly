@@ -8,18 +8,16 @@ import (
 )
 
 type Node interface {
+	ID() []byte
 	Transport() transport.Transport
-
+	Run(context.Context) (<-chan error, error)
 	SetConnHandler(handler func(transport.Conn))
 	RegisterProtocol(protoID string, handler func(transport.Conn))
-
-	Run(context.Context) (<-chan error, error)
 	DialPeer(ctx context.Context, p peer.Peer) (transport.Conn, error)
 	DialPeerUsingProcol(ctx context.Context, prtoID string, p peer.Peer) (transport.Conn, error)
-	ChangeProtocol(ctx context.Context, protoID string, conn transport.Conn) error
 }
 
-type DHTHaver interface {
-	SetValue(key []byte, value []byte)
-	GetValue(key []byte, value []byte)
+type DHT interface {
+	SetValue(ctx context.Context, key []byte, value []byte) error
+	GetValue(ctx context.Context, key []byte) ([]byte, error)
 }

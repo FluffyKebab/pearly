@@ -28,7 +28,7 @@ func TestPeerStore(t *testing.T) {
 	require.True(t, bytes.Equal([]byte{0b11000001}, s.buckets[2][1].ID()))
 	require.True(t, bytes.Equal([]byte{0b00000001}, s.buckets[0][0].ID()))
 
-	closest, err := s.GetClosestPeers([]byte{0b11000100}, 1)
+	closest, _, err := s.GetClosestPeers([]byte{0b11000100}, 1)
 	require.NoError(t, err)
 	require.True(t, bytes.Equal([]byte{0b11000000}, closest[0].ID()))
 

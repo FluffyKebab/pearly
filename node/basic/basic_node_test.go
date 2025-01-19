@@ -20,8 +20,8 @@ func TestBesicNode(t *testing.T) {
 	port2, err := testutil.GetAvilablePort()
 	require.NoError(t, err)
 
-	node1 := New(tcp.New(port1))
-	node2 := New(tcp.New(port2))
+	node1 := New(tcp.New(port1), nil)
+	node2 := New(tcp.New(port2), nil)
 
 	ctx, cancelCtx := context.WithDeadline(context.Background(), time.Now().Add(3*time.Second))
 	defer cancelCtx()

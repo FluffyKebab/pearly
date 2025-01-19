@@ -1,5 +1,7 @@
 package peer
 
+import "math/big"
+
 type Peer interface {
 	ID() []byte
 	PublicAddr() string
@@ -8,7 +10,8 @@ type Peer interface {
 type Store interface {
 	AddPeer(Peer) error
 	RemovePeer(Peer) error
-	GetClosestPeers(ID []byte, k int) ([]Peer, error)
+	GetClosestPeers(ID []byte, k int) ([]Peer, []*big.Int, error)
+	Distance(keyA, keyB []byte) (*big.Int, error)
 }
 
 type peer struct {

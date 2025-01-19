@@ -53,9 +53,9 @@ func (s Store) RemovePeer(p peer.Peer) error {
 	return nil
 }
 
-func (s Store) GetClosestPeers(key []byte, k int) ([]peer.Peer, error) {
+func (s Store) GetClosestPeers(key []byte, k int) ([]peer.Peer, []*big.Int, error) {
 	if len(s.nodeID) != len(key) {
-		return nil, fmt.Errorf("diffrent len keys") // TODO: imprv
+		return nil, nil, fmt.Errorf("diffrent len keys") // TODO: imprv
 	}
 
 	type peerDistence struct {
@@ -85,13 +85,23 @@ func (s Store) GetClosestPeers(key []byte, k int) ([]peer.Peer, error) {
 	}
 
 	res := make([]peer.Peer, 0, len(closest))
+	dis := make([]*big.Int, 0, len(closest))
 	for _, p := range closest {
 		if p.Peer == nil {
 			break
 		}
 		res = append(res, p.Peer)
+		dis = append(dis, p.Int)
 	}
-	return res, nil
+	return res, dis, nil
+}
+
+func (s Store) Distance(keyA, keyB []byte) (*big.Int, error) {
+	if len(keyA) != len(keyB) {
+		return nil, fmt.Errorf("diffrent len keys") // TODO: imprv
+	}
+
+	return distenceBetween(keyA, keyB), nil
 }
 
 func numEqualBitsPrefix(a, b []byte) int {

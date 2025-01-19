@@ -25,7 +25,7 @@ func createNode(
 	port, err := testutil.GetAvilablePort()
 	require.NoError(t, err)
 
-	n := basic.New(tcp.New(port))
+	n := basic.New(tcp.New(port), nil)
 	errChan, err := n.Run(ctx)
 	require.NoError(t, err)
 
