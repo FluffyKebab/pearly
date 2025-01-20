@@ -21,21 +21,30 @@ type Conn struct {
 	encoder     *gob.Encoder
 
 	ID             int
+	remoteID       []byte
 	unread         []byte
 	unreadReadPos  int
 	unreadWritePos int
 }
 
 var (
-	_ transport.Conn     = &Conn{}
-	_ io.ReadWriteCloser = &Conn{}
-	_ io.ByteReader      = &Conn{}
+	_ transport.Conn            = &Conn{}
+	_ transport.RemoteAddrHaver = &Conn{}
+	_ transport.RemoteIDHaver   = &Conn{}
+	_ io.ReadWriteCloser        = &Conn{}
+	_ io.ByteReader             = &Conn{}
 )
 
-func NewConn(underlayingConn transport.Conn, peerPubKey *rsa.PublicKey, nodePrivateKey *rsa.PrivateKey) *Conn {
+func NewConn(
+	underlayingConn transport.Conn,
+	peerPubKey *rsa.PublicKey,
+	nodePrivateKey *rsa.PrivateKey,
+	peerID []byte,
+) *Conn {
 	return &Conn{
 		lock:        &sync.Mutex{},
 		ID:          mrand.Int(),
+		remoteID:    peerID,
 		conn:        underlayingConn,
 		unread:      make([]byte, 1048),
 		peerPubKey:  peerPubKey,
@@ -48,7 +57,7 @@ func NewConn(underlayingConn transport.Conn, peerPubKey *rsa.PublicKey, nodePriv
 func (c *Conn) Read(p []byte) (n int, err error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	fmt.Println(c.ID, "doning read")
+
 	// If there are bytes left from a previous packet we return those first.
 	if c.unreadReadPos < c.unreadWritePos {
 		return c.readUnread(p)
@@ -94,6 +103,17 @@ func (c *Conn) Write(p []byte) (n int, err error) {
 	err = c.encoder.Encode(packet)
 
 	return len(p), err
+}
+
+func (c *Conn) RemoteAddr() string {
+	if remoteHaver, ok := c.conn.(transport.RemoteAddrHaver); ok {
+		return remoteHaver.RemoteAddr()
+	}
+	return ""
+}
+
+func (c *Conn) RemoteID() []byte {
+	return c.remoteID
 }
 
 func (c *Conn) Close() error {

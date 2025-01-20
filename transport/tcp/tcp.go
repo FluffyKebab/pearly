@@ -47,7 +47,7 @@ func (t Transport) Listen(ctx context.Context) (<-chan transport.Conn, <-chan er
 				continue
 			}
 
-			connChan <- conn
+			connChan <- connection{conn}
 		}
 	}()
 
@@ -56,7 +56,8 @@ func (t Transport) Listen(ctx context.Context) (<-chan transport.Conn, <-chan er
 
 func (t Transport) Dial(ctx context.Context, p peer.Peer) (transport.Conn, error) {
 	var d net.Dialer
-	return d.DialContext(ctx, "tcp", p.PublicAddr())
+	conn, err := d.DialContext(ctx, "tcp", p.PublicAddr())
+	return connection{conn}, err
 }
 
 func (t Transport) ListenAddr() string {

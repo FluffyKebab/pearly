@@ -63,10 +63,16 @@ func (s Service) Run() {
 			return err
 		}
 
-		// Validate reaquest.
+		// Validate request.
 		if !s.isValidRequest(req) {
 			sendResponse(c, Response{Err: ErrInvalidRequest})
 			return nil
+		}
+
+		// Try to add connected peer to peerstore.
+		if err := s.tryAddPeerToStore(c); err != nil {
+			sendResponse(c, Response{Err: ErrInvalidRequest})
+			return err
 		}
 
 		// Check if we have value localy.
@@ -117,14 +123,12 @@ func (s Service) Do(ctx context.Context, req Request, peer peer.Peer) (Response,
 	}
 	defer conn.Close()
 
-	fmt.Println("sending req sdfl...")
 	encoder := gob.NewEncoder(conn)
 	err = encoder.Encode(req)
 	if err != nil {
 		return Response{}, fmt.Errorf("%w: %w", ErrUnableToReachPeer, err)
 	}
 
-	fmt.Println("wating on response...")
 	var response Response
 	decoder := gob.NewDecoder(conn)
 	err = decoder.Decode(&response)
@@ -137,6 +141,20 @@ func (s Service) Do(ctx context.Context, req Request, peer peer.Peer) (Response,
 
 func (s Service) isValidRequest(req Request) bool {
 	return len(req.Key) == len(s.node.ID())
+}
+
+func (s Service) tryAddPeerToStore(c transport.Conn) error {
+	ider, ok := c.(transport.RemoteIDHaver)
+	if !ok {
+		return nil
+	}
+
+	adder, ok := c.(transport.RemoteAddrHaver)
+	if !ok {
+		return nil
+	}
+
+	return s.peerstore.AddPeer(peer.New(ider.RemoteID(), adder.RemoteAddr()))
 }
 
 func sendResponse(c transport.Conn, r Response) error {

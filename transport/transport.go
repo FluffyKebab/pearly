@@ -13,6 +13,14 @@ type Conn interface {
 	io.Closer
 }
 
+type RemoteAddrHaver interface {
+	RemoteAddr() string
+}
+
+type RemoteIDHaver interface {
+	RemoteID() []byte
+}
+
 type Transport interface {
 	Dial(context.Context, peer.Peer) (Conn, error)
 	Listen(ctx context.Context) (<-chan Conn, <-chan error, error)

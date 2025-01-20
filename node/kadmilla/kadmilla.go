@@ -104,6 +104,22 @@ func (dht DHT) GetValue(ctx context.Context, key []byte) (value []byte, err erro
 	}
 }
 
+func (dht DHT) Bootstrap(ctx context.Context, peerInNetwork peer.Peer) error {
+	// Add peer to k-buckets.
+	err := dht.peerstore.AddPeer(peerInNetwork)
+	if err != nil {
+		return err
+	}
+
+	// Preform self lookup.
+	_, err = dht.getValueService.Do(ctx, kdmgetvalue.Request{
+		Key: dht.node.ID(),
+		K:   0,
+	}, peerInNetwork)
+
+	return err
+}
+
 func (dht DHT) searchOnePeer(
 	ctx context.Context,
 	nodes []searchNode,

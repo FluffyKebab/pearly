@@ -8,6 +8,11 @@ import (
 	"github.com/FluffyKebab/pearly/transport"
 )
 
+type upgraderPayload struct {
+	ID        []byte
+	PublicKey []byte
+}
+
 func (t Transport) upgradeConn(c transport.Conn) (*Conn, error) {
 	err := sendPayload(c, t.id, t.publicKey)
 	if err != nil {
@@ -24,12 +29,9 @@ func (t Transport) upgradeConn(c transport.Conn) (*Conn, error) {
 		return nil, err
 	}
 
-	return NewConn(c, peerPubKey, t.privateKey), nil
-}
+	// TODO: validate peer
 
-type upgraderPayload struct {
-	ID        []byte
-	PublicKey []byte
+	return NewConn(c, peerPubKey, t.privateKey, peerData.ID), nil
 }
 
 func sendPayload(conn transport.Conn, id []byte, pubKey []byte) error {
