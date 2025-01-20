@@ -34,31 +34,28 @@ func Register(node node.Node, storer storage.Hashtable) Service {
 	}
 }
 
-func (s Service) Run() <-chan error {
-	errChan := make(chan error)
-	s.node.RegisterProtocol("/kdmstore", func(c transport.Conn) {
+func (s Service) Run() {
+	s.node.RegisterProtocol("/kdmstore", func(c transport.Conn) error {
 		var req Request
 		err := gob.NewDecoder(c).Decode(&req)
 		if err != nil {
-			errChan <- fmt.Errorf("kdmstore decoding: %w", err)
 			c.Write(_responseFailed)
-			return
+			return fmt.Errorf("kdmstore decoding: %w", err)
 		}
 
 		err = s.storer.Set(req.Key, req.Value)
 		if err != nil {
-			errChan <- fmt.Errorf("kdmstore storing value: %w", err)
 			c.Write(_responseFailed)
-			return
+			return fmt.Errorf("kdmstore storing value: %w", err)
 		}
 
 		_, err = c.Write(_responseOK)
 		if err != nil {
-			errChan <- fmt.Errorf("kdmstore sending response: %w", err)
+			return fmt.Errorf("kdmstore sending response: %w", err)
 		}
-	})
 
-	return errChan
+		return nil
+	})
 }
 
 func (s Service) Do(ctx context.Context, req Request, peer peer.Peer) error {

@@ -22,10 +22,9 @@ func NewMuxer() Muxer {
 	}
 }
 
-func (m Muxer) RegisterProtocol(protoID string, handler func(transport.Conn)) {
+func (m Muxer) RegisterProtocol(protoID string, handler func(transport.Conn) error) {
 	m.mux.AddHandler(protoID, func(_ string, rwc io.ReadWriteCloser) error {
-		handler(rwc)
-		return nil
+		return handler(rwc)
 	})
 }
 

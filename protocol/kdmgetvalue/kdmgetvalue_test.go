@@ -96,10 +96,8 @@ func createService(t *testing.T, ctx context.Context) (Service, peer.Peer, <-cha
 	require.NoError(t, err)
 
 	service := Register(n, store, hashtable)
-	return service, peer.New(
-			transport.ID(),
-			"localhost:"+port),
-		testutil.CombineErrChan(errChan, service.Run())
+	service.Run()
+	return service, peer.New(transport.ID(), "localhost:"+port), errChan
 }
 
 func createServiceNoEncryption(t *testing.T, ctx context.Context) (Service, peer.Peer, <-chan error) {
@@ -117,10 +115,8 @@ func createServiceNoEncryption(t *testing.T, ctx context.Context) (Service, peer
 	require.NoError(t, err)
 
 	service := Register(n, store, hashtable)
-	return service, peer.New(
-			nodeID,
-			"localhost:"+port),
-		testutil.CombineErrChan(errChan, service.Run())
+	service.Run()
+	return service, peer.New(nodeID, "localhost:"+port), errChan
 }
 
 func makeRandomPeerID(t *testing.T) []byte {

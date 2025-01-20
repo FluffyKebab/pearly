@@ -35,13 +35,14 @@ func TestBesicNode(t *testing.T) {
 	msg := "halo from 1"
 	msgRecived := make(chan struct{})
 
-	node2.SetConnHandler(func(c transport.Conn) {
+	node2.SetConnHandler(func(c transport.Conn) error {
 		buf := new(strings.Builder)
 		_, err := io.Copy(buf, c)
 		require.NoError(t, err)
 		require.Equal(t, msg, buf.String())
 
 		msgRecived <- struct{}{}
+		return nil
 	})
 
 	conn1, err := node1.DialPeer(ctx, peer.New([]byte("2"), "localhost:"+port2))

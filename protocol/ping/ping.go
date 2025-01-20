@@ -35,23 +35,20 @@ func (s Service) Do(ctx context.Context, peer peer.Peer) (time.Duration, error) 
 	return time.Since(t1), nil
 }
 
-func (s Service) Run() <-chan error {
-	errChan := make(chan error)
-	s.node.RegisterProtocol("/ping", func(c transport.Conn) {
+func (s Service) Run() {
+	s.node.RegisterProtocol("/ping", func(c transport.Conn) error {
 		_, _, err := bufio.NewReader(c).ReadLine()
 		if err != nil {
-			errChan <- err
-			return
+			return err
 		}
 
 		_, err = c.Write([]byte("pong\n"))
 		if err != nil {
-			errChan <- err
-			return
+			return err
 		}
-	})
 
-	return errChan
+		return nil
+	})
 }
 
 func Register(n node.Node) Service {

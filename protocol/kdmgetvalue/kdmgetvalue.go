@@ -52,60 +52,49 @@ func Register(node node.Node, peerstore peer.Store, storer storage.Hashtable) Se
 	}
 }
 
-func (s Service) Run() <-chan error {
-	errChan := make(chan error)
-	s.node.RegisterProtocol("/kdmgetvalue", func(c transport.Conn) {
+func (s Service) Run() {
+	s.node.RegisterProtocol("/kdmgetvalue", func(c transport.Conn) error {
 		// Decode request.
 		var req Request
 		decoder := gob.NewDecoder(c)
 		err := decoder.Decode(&req)
 		if err != nil {
-			errChan <- err
 			sendResponse(c, Response{Err: ErrInvalidRequest})
-			return
+			return err
 		}
 
 		// Validate reaquest.
 		if !s.isValidRequest(req) {
 			sendResponse(c, Response{Err: ErrInvalidRequest})
-			return
+			return nil
 		}
 
 		// Check if we have value localy.
 		value, err := s.storer.Get(req.Key)
 		if err == nil {
-			err := sendResponse(c, Response{Value: value})
-			if err != nil {
-				errChan <- err
-				return
-			}
-			return
+			return sendResponse(c, Response{Value: value})
 		}
 		if !errors.Is(err, storage.ErrNotFound) {
-			errChan <- err
 			sendResponse(c, Response{Err: ErrInternalServerError})
-			return
+			return err
 		}
 
 		// Get the closest nodes we know.
 		peers, dis, err := s.peerstore.GetClosestPeers(req.Key, req.K)
 		if err != nil {
-			errChan <- err
 			sendResponse(c, Response{Err: ErrInternalServerError})
-			return
+			return err
 		}
 		if len(peers) != len(dis) {
-			errChan <- errors.New("number of distences and peers returned from peerstore are diffrent")
 			sendResponse(c, Response{Err: ErrInternalServerError})
-			return
+			return errors.New("number of distences and peers returned from peerstore are diffrent")
 		}
 
 		// Convert data and filter out nodes that are not closer then we are.
 		thisNodeDistance, err := s.peerstore.Distance(s.node.ID(), req.Key)
 		if err != nil {
-			errChan <- err
 			sendResponse(c, Response{Err: ErrInternalServerError})
-			return
+			return err
 		}
 
 		nodes := make([]Node, 0, len(peers))
@@ -117,13 +106,8 @@ func (s Service) Run() <-chan error {
 			nodes = append(nodes, Node{peers[i].ID(), dis[i], peers[i].PublicAddr()})
 		}
 
-		err = sendResponse(c, Response{ClosestNodes: nodes})
-		if err != nil {
-			errChan <- err
-		}
+		return sendResponse(c, Response{ClosestNodes: nodes})
 	})
-
-	return errChan
 }
 
 func (s Service) Do(ctx context.Context, req Request, peer peer.Peer) (Response, error) {

@@ -30,10 +30,9 @@ func createNode(
 	require.NoError(t, err)
 
 	pingService := Register(n)
+	pingService.Run()
 
-	errChan2 := pingService.Run()
-
-	return port, pingService, testutil.CombineErrChan(errChan, errChan2)
+	return port, pingService, errChan
 }
 
 func TestPing(t *testing.T) {

@@ -14,7 +14,7 @@ type Node struct {
 	id            []byte
 	transport     transport.Transport
 	protocolMuxer protocolmux.Muxer
-	connHandler   func(transport.Conn)
+	connHandler   func(transport.Conn) error
 }
 
 var _ node.Node = &Node{}
@@ -53,7 +53,10 @@ func (n *Node) Run(ctx context.Context) (<-chan error, error) {
 			select {
 			case conn := <-connChan:
 				if n.connHandler != nil {
-					n.connHandler(conn)
+					err := n.connHandler(conn)
+					if err != nil {
+						errChan <- err
+					}
 					continue
 				}
 
@@ -93,10 +96,10 @@ func (n *Node) Transport() transport.Transport {
 	return n.transport
 }
 
-func (n *Node) SetConnHandler(handler func(transport.Conn)) {
+func (n *Node) SetConnHandler(handler func(transport.Conn) error) {
 	n.connHandler = handler
 }
 
-func (n *Node) RegisterProtocol(protoID string, handler func(transport.Conn)) {
+func (n *Node) RegisterProtocol(protoID string, handler func(transport.Conn) error) {
 	n.protocolMuxer.RegisterProtocol(protoID, handler)
 }

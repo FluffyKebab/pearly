@@ -7,7 +7,7 @@ import (
 )
 
 type Muxer interface {
-	RegisterProtocol(protoID string, handler func(transport.Conn))
+	RegisterProtocol(protoID string, handler func(transport.Conn) error)
 	SelectProtocol(ctx context.Context, protoID string, c transport.Conn) error
 	HandleConn(transport.Conn) error
 }
