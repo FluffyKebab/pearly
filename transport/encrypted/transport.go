@@ -21,6 +21,8 @@ type Transport struct {
 	publicKey  []byte
 }
 
+var _ transport.Transport = Transport{}
+
 func NewTransport(underalying transport.Transport) (Transport, error) {
 	privKey, pubKey, err := generateKeyPair()
 	if err != nil {
@@ -76,6 +78,10 @@ func (t Transport) Dial(ctx context.Context, p peer.Peer) (transport.Conn, error
 	}
 
 	return t.upgradeConn(conn)
+}
+
+func (t Transport) ListenAddr() string {
+	return t.underlaying.ListenAddr()
 }
 
 func (t Transport) ID() []byte {

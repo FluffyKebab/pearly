@@ -20,15 +20,15 @@ type hashtable struct {
 	data map[string][]byte
 }
 
-var _ Hashtable = hashtable{}
+var _ Hashtable = &hashtable{}
 
-func NewHashtable() hashtable {
-	return hashtable{
+func NewHashtable() *hashtable {
+	return &hashtable{
 		data: make(map[string][]byte),
 	}
 }
 
-func (h hashtable) Get(key []byte) ([]byte, error) {
+func (h *hashtable) Get(key []byte) ([]byte, error) {
 	res, ok := h.data[string(key)]
 	if !ok {
 		return nil, ErrNotFound
@@ -36,8 +36,9 @@ func (h hashtable) Get(key []byte) ([]byte, error) {
 	return res, nil
 }
 
-func (h hashtable) Set(key, value []byte) error {
+func (h *hashtable) Set(key, value []byte) error {
 	h.data[string(key)] = value
+
 	return nil
 }
 

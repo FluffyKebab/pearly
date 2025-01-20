@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/FluffyKebab/pearly/node"
@@ -14,11 +15,12 @@ import (
 	"github.com/FluffyKebab/pearly/storage"
 )
 
+var ErrAllreadySet = errors.New("a value with this key is allredy set in the DHT")
+
 type DHT struct {
 	node              node.Node
 	peerstore         peer.Store
 	datastore         storage.Hashtable
-	hasher            storage.Hasher
 	getValueService   kdmgetvalue.Service
 	storeValueService kdmstore.Service
 }
@@ -32,6 +34,9 @@ func New(node node.Node) DHT {
 	getValueService := kdmgetvalue.Register(node, peerstore, hashtable)
 	storeValueService := kdmstore.Register(node, hashtable)
 
+	getValueService.Run()
+	storeValueService.Run()
+
 	return DHT{
 		node:              node,
 		peerstore:         peerstore,
@@ -42,82 +47,114 @@ func New(node node.Node) DHT {
 }
 
 func (dht DHT) SetValue(ctx context.Context, key []byte, value []byte) error {
+	nodes := []searchNode{
+		{peer: peer.New(dht.node.ID(), dht.node.Transport().ListenAddr())},
+	}
+	peersThatShouldStoreValue := make([]peer.Peer, 0)
+
+	for {
+		var (
+			isClosestToKey bool
+			peerSearched   peer.Peer
+			valueStored    []byte
+			err            error
+		)
+		nodes, valueStored, isClosestToKey, peerSearched, err = dht.searchOnePeer(ctx, nodes, key)
+		if err != nil {
+			if errors.Is(err, storage.ErrNotFound) {
+				break
+			}
+			return err
+		}
+		if valueStored != nil {
+			return ErrAllreadySet
+		}
+		if isClosestToKey {
+			peersThatShouldStoreValue = append(peersThatShouldStoreValue, peerSearched)
+		}
+	}
+
+	if len(peersThatShouldStoreValue) == 0 {
+		return fmt.Errorf("unexpected error: zero nodes found")
+	}
+
+	for _, peer := range peersThatShouldStoreValue {
+		err := dht.storeValueService.Do(ctx, kdmstore.Request{Key: key, Value: value}, peer)
+		if err != nil { // TODO: handle error.
+			return err
+		}
+	}
+
 	return nil
 }
 
-func (dht DHT) GetValue(ctx context.Context, key []byte) ([]byte, error) {
-	hashedKey, err := dht.hasher.Hash(key)
-	if err != nil {
-		return nil, err
-	}
-
-	value, err := dht.datastore.Get(hashedKey)
-	if err == nil {
-		return value, nil
-	}
-	if !errors.Is(err, storage.ErrNotFound) {
-		return nil, err
-	}
-
-	closestPeers, distences, err := dht.peerstore.GetClosestPeers(hashedKey, 3)
-	if err != nil {
-		return nil, err
-	}
-
-	nodes := make([]searchNode, 0)
-	for i := 0; i < len(closestPeers) && i < len(distences); i++ {
-		err = dht.peerstore.AddPeer(closestPeers[i])
-		if err != nil {
-			return nil, err
-		}
-		nodes = addSearchNode(nodes, closestPeers[i], distences[i], false)
+func (dht DHT) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+	nodes := []searchNode{
+		{peer: peer.New(dht.node.ID(), dht.node.Transport().ListenAddr())},
 	}
 
 	for {
-		node, err := closestNode(nodes)
+		nodes, value, _, _, err = dht.searchOnePeer(ctx, nodes, key)
 		if err != nil {
 			return nil, err
 		}
-		node.searchDone = true
-
-		response, err := dht.getValueService.Do(ctx, kdmgetvalue.Request{
-			Key: key,
-			K:   3,
-		}, node.peer)
-
-		if errors.Is(err, kdmgetvalue.ErrInvalidResponse) ||
-			errors.Is(err, kdmgetvalue.ErrUnableToReachPeer) ||
-			errors.Is(err, kdmgetvalue.ErrInternalServerError) {
-
-			err = dht.peerstore.RemovePeer(node.peer)
-			if err != nil {
-				return nil, err
-			}
-			continue
+		if value != nil {
+			return value, err
 		}
+	}
+}
+
+func (dht DHT) searchOnePeer(
+	ctx context.Context,
+	nodes []searchNode,
+	hashedKey []byte,
+) ([]searchNode, []byte, bool, peer.Peer, error) {
+	node, err := closestNode(nodes)
+	if err != nil {
+		return nodes, nil, false, nil, err
+	}
+	node.searchDone = true
+
+	response, err := dht.getValueService.Do(ctx, kdmgetvalue.Request{
+		Key: hashedKey,
+		K:   3,
+	}, node.peer)
+
+	if errors.Is(err, kdmgetvalue.ErrInvalidResponse) ||
+		errors.Is(err, kdmgetvalue.ErrUnableToReachPeer) ||
+		errors.Is(err, kdmgetvalue.ErrInternalServerError) {
+
+		err = dht.peerstore.RemovePeer(node.peer)
 		if err != nil {
-			return nil, err
+			return nodes, nil, false, node.peer, err
 		}
-		if response.Value != nil {
-			return response.Value, nil
-		}
+		return nodes, nil, false, node.peer, nil
+	}
+	if err != nil {
+		return nodes, nil, false, node.peer, fmt.Errorf("unkown error contatcting peer: %w", err)
+	}
+	if response.Value != nil {
+		return nodes, response.Value, false, node.peer, nil
+	}
 
-		for i := 0; i < len(response.ClosestNodes); i++ {
-			curPeer := peer.New(response.ClosestNodes[i].ID, response.ClosestNodes[i].PublicAddr)
-			err = dht.peerstore.AddPeer(curPeer)
-			if err != nil {
-				return nil, err
-			}
-
-			nodes = addSearchNode(
-				nodes,
-				curPeer,
-				response.ClosestNodes[i].Distance,
-				false,
+	for i := 0; i < len(response.ClosestNodes); i++ {
+		curPeer := peer.New(response.ClosestNodes[i].ID, response.ClosestNodes[i].PublicAddr)
+		err = dht.peerstore.AddPeer(curPeer)
+		if err != nil {
+			return nodes, nil, false, node.peer, fmt.Errorf(
+				"adding peer (%s, %s) to peerstore: %w", curPeer.ID(), curPeer.PublicAddr(), err,
 			)
 		}
 
+		nodes = addSearchNode(
+			nodes,
+			curPeer,
+			response.ClosestNodes[i].Distance,
+			false,
+		)
 	}
+
+	return nodes, nil, len(response.ClosestNodes) == 0, node.peer, nil
 }
 
 type searchNode struct {
@@ -140,14 +177,21 @@ func addSearchNode(nodes []searchNode, peer peer.Peer, dist *big.Int, searchDone
 
 func closestNode(nodes []searchNode) (*searchNode, error) {
 	var closest *searchNode
-	for _, node := range nodes {
-		if closest == nil {
-			closest = &node
+	for i := 0; i < len(nodes); i++ {
+		if nodes[i].searchDone {
 			continue
 		}
-		if closest.distance.Cmp(node.distance) < 0 {
-			closest = &node
+		if closest == nil || nodes[i].distance == nil {
+			closest = &nodes[i]
+			continue
 		}
+		if closest.distance.Cmp(nodes[i].distance) < 0 {
+			closest = &nodes[i]
+		}
+	}
+
+	if closest == nil {
+		return nil, storage.ErrNotFound
 	}
 
 	return closest, nil

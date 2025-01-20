@@ -98,7 +98,7 @@ func (s Store) GetClosestPeers(key []byte, k int) ([]peer.Peer, []*big.Int, erro
 
 func (s Store) Distance(keyA, keyB []byte) (*big.Int, error) {
 	if len(keyA) != len(keyB) {
-		return nil, fmt.Errorf("diffrent len keys") // TODO: imprv
+		return nil, fmt.Errorf("diffrent len keys in dis") // TODO: imprv
 	}
 
 	return distenceBetween(keyA, keyB), nil

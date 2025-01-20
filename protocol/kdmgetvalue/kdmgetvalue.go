@@ -108,13 +108,13 @@ func (s Service) Run() <-chan error {
 			return
 		}
 
-		nodes := make([]Node, len(peers))
+		nodes := make([]Node, 0, len(peers))
 		for i := 0; i < len(peers); i++ {
 			if dis[i].Cmp(thisNodeDistance) > 0 {
 				continue
 			}
 
-			nodes[i] = Node{peers[i].ID(), dis[i], peers[i].PublicAddr()}
+			nodes = append(nodes, Node{peers[i].ID(), dis[i], peers[i].PublicAddr()})
 		}
 
 		err = sendResponse(c, Response{ClosestNodes: nodes})

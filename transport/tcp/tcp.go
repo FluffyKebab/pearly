@@ -58,3 +58,7 @@ func (t Transport) Dial(ctx context.Context, p peer.Peer) (transport.Conn, error
 	var d net.Dialer
 	return d.DialContext(ctx, "tcp", p.PublicAddr())
 }
+
+func (t Transport) ListenAddr() string {
+	return "127.0.0.1:" + t.port
+}
