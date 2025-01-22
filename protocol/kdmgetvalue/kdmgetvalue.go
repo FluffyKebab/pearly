@@ -29,7 +29,7 @@ type Request struct {
 type Response struct {
 	Value        []byte
 	ClosestNodes []Node
-	Err          error
+	Err          string
 }
 
 type Node struct {
@@ -59,19 +59,19 @@ func (s Service) Run() {
 		decoder := gob.NewDecoder(c)
 		err := decoder.Decode(&req)
 		if err != nil {
-			sendResponse(c, Response{Err: ErrInvalidRequest})
+			sendResponse(c, Response{Err: ErrInvalidRequest.Error()})
 			return err
 		}
 
 		// Validate request.
 		if !s.isValidRequest(req) {
-			sendResponse(c, Response{Err: ErrInvalidRequest})
+			sendResponse(c, Response{Err: ErrInvalidRequest.Error()})
 			return nil
 		}
 
 		// Try to add connected peer to peerstore.
 		if err := s.tryAddPeerToStore(c); err != nil {
-			sendResponse(c, Response{Err: ErrInvalidRequest})
+			sendResponse(c, Response{Err: ErrInvalidRequest.Error()})
 			return err
 		}
 
@@ -81,25 +81,25 @@ func (s Service) Run() {
 			return sendResponse(c, Response{Value: value})
 		}
 		if !errors.Is(err, storage.ErrNotFound) {
-			sendResponse(c, Response{Err: ErrInternalServerError})
+			sendResponse(c, Response{Err: ErrInternalServerError.Error()})
 			return err
 		}
 
 		// Get the closest nodes we know.
 		peers, dis, err := s.peerstore.GetClosestPeers(req.Key, req.K)
 		if err != nil {
-			sendResponse(c, Response{Err: ErrInternalServerError})
+			sendResponse(c, Response{Err: ErrInternalServerError.Error()})
 			return err
 		}
 		if len(peers) != len(dis) {
-			sendResponse(c, Response{Err: ErrInternalServerError})
+			sendResponse(c, Response{Err: ErrInternalServerError.Error()})
 			return errors.New("number of distences and peers returned from peerstore are diffrent")
 		}
 
 		// Convert data and filter out nodes that are not closer then we are.
 		thisNodeDistance, err := s.peerstore.Distance(s.node.ID(), req.Key)
 		if err != nil {
-			sendResponse(c, Response{Err: ErrInternalServerError})
+			sendResponse(c, Response{Err: ErrInternalServerError.Error()})
 			return err
 		}
 
@@ -122,7 +122,6 @@ func (s Service) Do(ctx context.Context, req Request, peer peer.Peer) (Response,
 		return Response{}, fmt.Errorf("%w: %w", ErrUnableToReachPeer, err)
 	}
 	defer conn.Close()
-
 	encoder := gob.NewEncoder(conn)
 	err = encoder.Encode(req)
 	if err != nil {
@@ -136,7 +135,7 @@ func (s Service) Do(ctx context.Context, req Request, peer peer.Peer) (Response,
 		return Response{}, fmt.Errorf("%w: %w", ErrInvalidResponse, err)
 	}
 
-	return response, response.Err
+	return response, convertToError(response.Err)
 }
 
 func (s Service) isValidRequest(req Request) bool {
@@ -154,7 +153,12 @@ func (s Service) tryAddPeerToStore(c transport.Conn) error {
 		return nil
 	}
 
-	return s.peerstore.AddPeer(peer.New(ider.RemoteID(), adder.RemoteAddr()))
+	err := s.peerstore.AddPeer(peer.New(ider.RemoteID(), adder.RemoteAddr()))
+	if err != nil && !errors.Is(err, peer.ErrNoSpaceToStorePeer) {
+		return err
+	}
+
+	return nil
 }
 
 func sendResponse(c transport.Conn, r Response) error {
@@ -167,4 +171,22 @@ func sendResponse(c transport.Conn, r Response) error {
 
 	_, err = c.Write(msg.Bytes())
 	return err
+}
+
+func convertToError(s string) error {
+	if s == "" {
+		return nil
+	}
+
+	if ErrInvalidResponse.Error() == s {
+		return ErrInvalidResponse
+	}
+	if ErrInvalidRequest.Error() == s {
+		return ErrInvalidRequest
+	}
+	if ErrInternalServerError.Error() == s {
+		return ErrInternalServerError
+	}
+
+	return errors.New(s)
 }

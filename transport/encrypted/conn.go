@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/gob"
-	"fmt"
 	"io"
 	mrand "math/rand"
 	"sync"
@@ -39,6 +38,8 @@ func NewConn(
 	underlayingConn transport.Conn,
 	peerPubKey *rsa.PublicKey,
 	nodePrivateKey *rsa.PrivateKey,
+	gobDecoder *gob.Decoder,
+	gobEncoder *gob.Encoder,
 	peerID []byte,
 ) *Conn {
 	return &Conn{
@@ -49,15 +50,12 @@ func NewConn(
 		unread:      make([]byte, 1048),
 		peerPubKey:  peerPubKey,
 		nodePrivKey: nodePrivateKey,
-		decoder:     gob.NewDecoder(underlayingConn),
-		encoder:     gob.NewEncoder(underlayingConn),
+		decoder:     gobDecoder,
+		encoder:     gobEncoder,
 	}
 }
 
 func (c *Conn) Read(p []byte) (n int, err error) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
 	// If there are bytes left from a previous packet we return those first.
 	if c.unreadReadPos < c.unreadWritePos {
 		return c.readUnread(p)
@@ -69,7 +67,7 @@ func (c *Conn) Read(p []byte) (n int, err error) {
 	var pckt packet
 	err = c.decoder.Decode(&pckt)
 	if err != nil {
-		return 0, fmt.Errorf("packet decoding: %w", err)
+		return 0, err
 	}
 
 	for _, msg := range pckt.Data {
@@ -84,8 +82,6 @@ func (c *Conn) Read(p []byte) (n int, err error) {
 }
 
 func (c *Conn) Write(p []byte) (n int, err error) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
 	bachedData := bactchData(p, c.peerPubKey.Size()-11)
 	packet := packet{Data: make([][]byte, 0, len(bachedData))}
 
@@ -98,10 +94,7 @@ func (c *Conn) Write(p []byte) (n int, err error) {
 		packet.Data = append(packet.Data, ciphertext)
 	}
 
-	fmt.Println(c.ID, "sending", string(p))
-	fmt.Println(c.ID, "sending", p)
 	err = c.encoder.Encode(packet)
-
 	return len(p), err
 }
 
@@ -127,17 +120,13 @@ func (c *Conn) ReadByte() (byte, error) {
 }
 
 func (c *Conn) readUnread(p []byte) (int, error) {
-	//c.unreadMutex.Lock()
-	//defer c.unreadMutex.Unlock()
-
 	var n int
 	for n < len(p) && c.unreadReadPos < c.unreadWritePos {
 		p[n] = c.unread[c.unreadReadPos]
 		c.unreadReadPos++
 		n++
 	}
-	fmt.Println(c.ID, "reading", string(p[:n]))
-	fmt.Println(c.ID, "reading", p[:n])
+
 	return n, nil
 }
 

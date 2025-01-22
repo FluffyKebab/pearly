@@ -2,15 +2,12 @@ package dhtpeer
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"math/big"
 	"math/bits"
 
 	"github.com/FluffyKebab/pearly/peer"
 )
-
-var ErrNoSpaceToStorePeer = errors.New("no space in bucket for peer")
 
 type Store struct {
 	// Number of peers stored in each bucket.
@@ -139,7 +136,7 @@ func insertPeerIntoBucket(bucket []peer.Peer, toBeInserted peer.Peer) error {
 		}
 	}
 
-	return ErrNoSpaceToStorePeer
+	return peer.ErrNoSpaceToStorePeer
 }
 
 func removePeerFromBucket(bucket []peer.Peer, toBeRemoved peer.Peer) {

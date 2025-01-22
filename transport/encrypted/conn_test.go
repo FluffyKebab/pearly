@@ -1,6 +1,7 @@
 package encrypted
 
 import (
+	"encoding/gob"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -51,8 +52,22 @@ func TestEncryptedConn(t *testing.T) {
 		buffer: make([]byte, 1048),
 	}
 
-	encryptedConn1to2 := NewConn(conn1To2, node2pubKey, node1privKey, nil)
-	encryptedConn2to1 := NewConn(conn2To1, node1pubKey, node2privKey, nil)
+	encryptedConn1to2 := NewConn(
+		conn1To2,
+		node2pubKey,
+		node1privKey,
+		gob.NewDecoder(conn1To2),
+		gob.NewEncoder(conn1To2),
+		nil,
+	)
+	encryptedConn2to1 := NewConn(
+		conn2To1,
+		node1pubKey,
+		node2privKey,
+		gob.NewDecoder(conn2To1),
+		gob.NewEncoder(conn2To1),
+		nil,
+	)
 
 	// Sending text.
 	msg := []byte("hello from node 1, to node 2")
@@ -100,8 +115,22 @@ func TestEncryptedConnSmallBuffer(t *testing.T) {
 		buffer: make([]byte, 1048),
 	}
 
-	encryptedConn1to2 := NewConn(conn1To2, node2pubKey, node1privKey, nil)
-	encryptedConn2to1 := NewConn(conn2To1, node1pubKey, node2privKey, nil)
+	encryptedConn1to2 := NewConn(
+		conn1To2,
+		node2pubKey,
+		node1privKey,
+		gob.NewDecoder(conn1To2),
+		gob.NewEncoder(conn1To2),
+		nil,
+	)
+	encryptedConn2to1 := NewConn(
+		conn2To1,
+		node1pubKey,
+		node2privKey,
+		gob.NewDecoder(conn2To1),
+		gob.NewEncoder(conn2To1),
+		nil,
+	)
 
 	msg := []byte("hello from node 1, to node 2")
 	_, err = encryptedConn1to2.Write(msg)
@@ -133,8 +162,22 @@ func TestEncryptedConnSmallThenLargeBuffer(t *testing.T) {
 		buffer: make([]byte, 1048),
 	}
 
-	encryptedConn1to2 := NewConn(conn1To2, node2pubKey, node1privKey, nil)
-	encryptedConn2to1 := NewConn(conn2To1, node1pubKey, node2privKey, nil)
+	encryptedConn1to2 := NewConn(
+		conn1To2,
+		node2pubKey,
+		node1privKey,
+		gob.NewDecoder(conn1To2),
+		gob.NewEncoder(conn1To2),
+		nil,
+	)
+	encryptedConn2to1 := NewConn(
+		conn2To1,
+		node1pubKey,
+		node2privKey,
+		gob.NewDecoder(conn2To1),
+		gob.NewEncoder(conn2To1),
+		nil,
+	)
 
 	msg := []byte("hello from node 1, to node 2")
 	_, err = encryptedConn1to2.Write(msg)

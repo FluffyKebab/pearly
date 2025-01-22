@@ -1,6 +1,11 @@
 package peer
 
-import "math/big"
+import (
+	"errors"
+	"math/big"
+)
+
+var ErrNoSpaceToStorePeer = errors.New("no space in bucket for peer")
 
 type Peer interface {
 	ID() []byte

@@ -1,7 +1,6 @@
 package encrypted
 
 import (
-	"bytes"
 	"crypto/x509"
 	"encoding/gob"
 
@@ -14,12 +13,19 @@ type upgraderPayload struct {
 }
 
 func (t Transport) upgradeConn(c transport.Conn) (*Conn, error) {
-	err := sendPayload(c, t.id, t.publicKey)
+	encoder := gob.NewEncoder(c)
+	decoder := gob.NewDecoder(c)
+
+	err := encoder.Encode(upgraderPayload{
+		ID:        t.id,
+		PublicKey: t.publicKey,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	peerData, err := recivePayload(c)
+	var peerData upgraderPayload
+	err = decoder.Decode(&peerData)
 	if err != nil {
 		return nil, err
 	}
@@ -31,27 +37,5 @@ func (t Transport) upgradeConn(c transport.Conn) (*Conn, error) {
 
 	// TODO: validate peer
 
-	return NewConn(c, peerPubKey, t.privateKey, peerData.ID), nil
-}
-
-func sendPayload(conn transport.Conn, id []byte, pubKey []byte) error {
-	var msg bytes.Buffer
-	encoder := gob.NewEncoder(&msg)
-	err := encoder.Encode(upgraderPayload{
-		ID:        id,
-		PublicKey: pubKey,
-	})
-	if err != nil {
-		return err
-	}
-
-	_, err = conn.Write(msg.Bytes())
-	return err
-}
-
-func recivePayload(conn transport.Conn) (upgraderPayload, error) {
-	var msg upgraderPayload
-	decoder := gob.NewDecoder(conn)
-	err := decoder.Decode(&msg)
-	return msg, err
+	return NewConn(c, peerPubKey, t.privateKey, decoder, encoder, peerData.ID), nil
 }
