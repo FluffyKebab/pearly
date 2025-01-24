@@ -13,6 +13,7 @@ import (
 	"github.com/FluffyKebab/pearly/protocol/kdmgetvalue"
 	"github.com/FluffyKebab/pearly/protocol/kdmstore"
 	"github.com/FluffyKebab/pearly/storage"
+	"github.com/FluffyKebab/pearly/transport"
 )
 
 var ErrAllreadySet = errors.New("a value with this key is allredy set in the DHT")
@@ -105,6 +106,23 @@ func (dht DHT) GetValue(ctx context.Context, key []byte) (value []byte, err erro
 }
 
 func (dht DHT) Bootstrap(ctx context.Context, peerInNetwork peer.Peer) error {
+	// Get the id of the peer if it is missing.
+	if peerInNetwork.ID() == nil {
+		c, err := dht.node.DialPeer(ctx, peerInNetwork)
+		if err != nil {
+			return fmt.Errorf("connacting bootsrap node: %w", err)
+		}
+
+		remoteId, ok := c.(transport.RemoteIDHaver)
+		if !ok {
+			return fmt.Errorf(
+				"connection created by transport must be a RemoteIDHaver to support bootsrap without peer id. Try using encrypted transport instead",
+			)
+		}
+
+		peerInNetwork.SetID(remoteId.RemoteID())
+	}
+
 	// Add peer to k-buckets.
 	err := dht.peerstore.AddPeer(peerInNetwork)
 	if err != nil {
