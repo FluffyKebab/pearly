@@ -2,6 +2,7 @@ package basic
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/FluffyKebab/pearly/node"
 	"github.com/FluffyKebab/pearly/peer"
@@ -52,19 +53,7 @@ func (n *Node) Run(ctx context.Context) (<-chan error, error) {
 		for {
 			select {
 			case conn := <-connChan:
-				if n.connHandler != nil {
-					err := n.connHandler(conn)
-					if err != nil {
-						errChan <- err
-					}
-					continue
-				}
-
-				err := n.protocolMuxer.HandleConn(conn)
-				if err != nil {
-					errChan <- err
-				}
-
+				go n.handleConn(conn, errChan)
 			case <-ctx.Done():
 				return
 			}
@@ -72,6 +61,24 @@ func (n *Node) Run(ctx context.Context) (<-chan error, error) {
 	}()
 
 	return errChan, nil
+}
+
+func (n *Node) handleConn(conn transport.Conn, errChan chan error) {
+	if n.connHandler != nil {
+		err := n.connHandler(conn)
+		if err != nil {
+			errChan <- err
+		}
+
+		return
+	}
+
+	err := n.protocolMuxer.HandleConn(conn)
+	if err != nil {
+		errChan <- err
+	}
+
+	fmt.Println("hadeled conn")
 }
 
 func (n *Node) DialPeer(ctx context.Context, p peer.Peer) (transport.Conn, error) {

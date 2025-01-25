@@ -12,8 +12,8 @@ import (
 	"github.com/FluffyKebab/pearly/peer/dhtpeer"
 	"github.com/FluffyKebab/pearly/protocol/kdmgetvalue"
 	"github.com/FluffyKebab/pearly/protocol/kdmstore"
+	"github.com/FluffyKebab/pearly/protocol/ping"
 	"github.com/FluffyKebab/pearly/storage"
-	"github.com/FluffyKebab/pearly/transport"
 )
 
 var ErrAllreadySet = errors.New("a value with this key is allredy set in the DHT")
@@ -23,6 +23,7 @@ type DHT struct {
 	peerstore         peer.Store
 	datastore         storage.Hashtable
 	getValueService   kdmgetvalue.Service
+	pingService       ping.Service
 	storeValueService kdmstore.Service
 }
 
@@ -34,15 +35,18 @@ func New(node node.Node) DHT {
 
 	getValueService := kdmgetvalue.Register(node, peerstore, hashtable)
 	storeValueService := kdmstore.Register(node, hashtable)
+	pingService := ping.Register(node)
 
 	getValueService.Run()
 	storeValueService.Run()
+	pingService.Run()
 
 	return DHT{
 		node:              node,
 		peerstore:         peerstore,
 		datastore:         hashtable,
 		getValueService:   getValueService,
+		pingService:       pingService,
 		storeValueService: storeValueService,
 	}
 }
@@ -106,36 +110,16 @@ func (dht DHT) GetValue(ctx context.Context, key []byte) (value []byte, err erro
 }
 
 func (dht DHT) Bootstrap(ctx context.Context, peerInNetwork peer.Peer) error {
-	// Get the id of the peer if it is missing.
-	if peerInNetwork.ID() == nil {
-		c, err := dht.node.DialPeer(ctx, peerInNetwork)
-		if err != nil {
-			return fmt.Errorf("connacting bootsrap node: %w", err)
-		}
-
-		remoteId, ok := c.(transport.RemoteIDHaver)
-		if !ok {
-			return fmt.Errorf(
-				"connection created by transport must be a RemoteIDHaver to support bootsrap without peer id. Try using encrypted transport instead",
-			)
-		}
-
-		peerInNetwork.SetID(remoteId.RemoteID())
-	}
-
-	// Add peer to k-buckets.
-	err := dht.peerstore.AddPeer(peerInNetwork)
-	if err != nil {
-		return err
-	}
-
 	// Preform self lookup.
-	_, err = dht.getValueService.Do(ctx, kdmgetvalue.Request{
+	response, err := dht.getValueService.Do(ctx, kdmgetvalue.Request{
 		Key: dht.node.ID(),
 		K:   0,
 	}, peerInNetwork)
+	if err != nil {
+		return fmt.Errorf("self lookup failed: %w", err)
+	}
 
-	return err
+	return dht.peerstore.AddPeer(peerInNetwork.SetID(response.NodeContacted.ID))
 }
 
 func (dht DHT) searchOnePeer(

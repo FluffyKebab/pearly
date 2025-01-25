@@ -27,9 +27,10 @@ type Request struct {
 }
 
 type Response struct {
-	Value        []byte
-	ClosestNodes []Node
-	Err          string
+	Value         []byte
+	NodeContacted Node
+	ClosestNodes  []Node
+	Err           string
 }
 
 type Node struct {
@@ -112,16 +113,24 @@ func (s Service) Run() {
 			nodes = append(nodes, Node{peers[i].ID(), dis[i], peers[i].PublicAddr()})
 		}
 
-		return sendResponse(c, Response{ClosestNodes: nodes})
+		return sendResponse(c, Response{
+			NodeContacted: Node{
+				ID:         s.node.ID(),
+				Distance:   thisNodeDistance,
+				PublicAddr: s.node.Transport().ListenAddr(),
+			},
+			ClosestNodes: nodes,
+		})
 	})
 }
 
-func (s Service) Do(ctx context.Context, req Request, peer peer.Peer) (Response, error) {
-	conn, err := s.node.DialPeerUsingProcol(ctx, "/kdmgetvalue", peer)
+func (s Service) Do(ctx context.Context, req Request, p peer.Peer) (Response, error) {
+	conn, err := s.node.DialPeerUsingProcol(ctx, "/kdmgetvalue", p)
 	if err != nil {
 		return Response{}, fmt.Errorf("%w: %w", ErrUnableToReachPeer, err)
 	}
 	defer conn.Close()
+
 	encoder := gob.NewEncoder(conn)
 	err = encoder.Encode(req)
 	if err != nil {
@@ -134,12 +143,24 @@ func (s Service) Do(ctx context.Context, req Request, peer peer.Peer) (Response,
 	if err != nil {
 		return Response{}, fmt.Errorf("%w: %w", ErrInvalidResponse, err)
 	}
+	if !s.isValidResponse(response, conn) {
+		return Response{}, ErrInvalidResponse
+	}
 
 	return response, convertToError(response.Err)
 }
 
 func (s Service) isValidRequest(req Request) bool {
 	return len(req.Key) == len(s.node.ID())
+}
+
+func (s Service) isValidResponse(res Response, conn transport.Conn) bool {
+	remoteId, ok := conn.(transport.RemoteIDHaver)
+	if !ok {
+		return true
+	}
+
+	return bytes.Equal(remoteId.RemoteID(), res.NodeContacted.ID)
 }
 
 func (s Service) tryAddPeerToStore(c transport.Conn) error {
