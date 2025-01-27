@@ -4,12 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"errors"
 	"fmt"
 
 	"github.com/FluffyKebab/pearly/node"
 	"github.com/FluffyKebab/pearly/peer"
 	"github.com/FluffyKebab/pearly/storage"
 	"github.com/FluffyKebab/pearly/transport"
+)
+
+var (
+	ErrUnableToReachPeer = errors.New("unable to reach peer")
+	ErrInvalidResponse   = errors.New("invalid response from peer")
 )
 
 var (
@@ -61,12 +67,13 @@ func (s Service) Run() {
 func (s Service) Do(ctx context.Context, req Request, peer peer.Peer) error {
 	c, err := s.node.DialPeerUsingProcol(ctx, "/kdmstore", peer)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrUnableToReachPeer, err)
 	}
+	defer c.Close()
 
 	err = gob.NewEncoder(c).Encode(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrUnableToReachPeer, err)
 	}
 
 	buf := make([]byte, 128)
@@ -75,7 +82,7 @@ func (s Service) Do(ctx context.Context, req Request, peer peer.Peer) error {
 		return err
 	}
 	if !bytes.Equal(buf[:n], _responseOK) {
-		return fmt.Errorf("storing value failed")
+		return ErrInvalidResponse
 	}
 	return nil
 }

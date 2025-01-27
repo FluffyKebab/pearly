@@ -33,5 +33,6 @@ func (c connection) RemoteAddr() string {
 	if c.conn.RemoteAddr() == nil {
 		return ""
 	}
+
 	return c.conn.RemoteAddr().String()
 }

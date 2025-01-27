@@ -3,13 +3,15 @@ package encrypted
 import (
 	"crypto/x509"
 	"encoding/gob"
+	"strings"
 
 	"github.com/FluffyKebab/pearly/transport"
 )
 
 type upgraderPayload struct {
-	ID        []byte
-	PublicKey []byte
+	ID            []byte
+	PublicKey     []byte
+	ListeningPort string
 }
 
 func (t Transport) upgradeConn(c transport.Conn) (*Conn, error) {
@@ -17,8 +19,9 @@ func (t Transport) upgradeConn(c transport.Conn) (*Conn, error) {
 	decoder := gob.NewDecoder(c)
 
 	err := encoder.Encode(upgraderPayload{
-		ID:        t.id,
-		PublicKey: t.publicKey,
+		ID:            t.id,
+		PublicKey:     t.publicKey,
+		ListeningPort: strings.Split(t.ListenAddr(), ":")[1],
 	})
 	if err != nil {
 		return nil, err
@@ -37,5 +40,5 @@ func (t Transport) upgradeConn(c transport.Conn) (*Conn, error) {
 
 	// TODO: validate peer
 
-	return NewConn(c, peerPubKey, t.privateKey, decoder, encoder, peerData.ID), nil
+	return NewConn(c, peerPubKey, t.privateKey, decoder, encoder, peerData.ID, peerData.ListeningPort), nil
 }

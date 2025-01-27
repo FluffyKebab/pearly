@@ -35,6 +35,9 @@ func (s Store) AddPeer(p peer.Peer) error {
 	if len(s.nodeID) != len(p.ID()) {
 		return fmt.Errorf("diffrent len keys") // TODO: imprv
 	}
+	if bytes.Equal(p.ID(), s.nodeID) {
+		return nil
+	}
 
 	bucketPos := numEqualBitsPrefix(s.nodeID, p.ID())
 	return insertPeerIntoBucket(s.buckets[bucketPos], p)
@@ -44,10 +47,26 @@ func (s Store) RemovePeer(p peer.Peer) error {
 	if len(s.nodeID) != len(p.ID()) {
 		return fmt.Errorf("diffrent len keys") // TODO: imprv
 	}
+	if bytes.Equal(p.ID(), s.nodeID) {
+		return nil
+	}
 
 	bucketPos := numEqualBitsPrefix(s.nodeID, p.ID())
 	removePeerFromBucket(s.buckets[bucketPos], p)
 	return nil
+}
+
+func (s Store) Peers() []peer.Peer {
+	peers := make([]peer.Peer, 0)
+	for i := 0; i < len(s.buckets); i++ {
+		for j := 0; j < len(s.buckets[i]); j++ {
+			if s.buckets[i][j] != nil {
+				peers = append(peers, s.buckets[i][j])
+			}
+		}
+	}
+
+	return peers
 }
 
 func (s Store) GetClosestPeers(key []byte, k int) ([]peer.Peer, []*big.Int, error) {
@@ -72,10 +91,12 @@ func (s Store) GetClosestPeers(key []byte, k int) ([]peer.Peer, []*big.Int, erro
 			for i := 0; i < len(closest); i++ {
 				if closest[i].Peer == nil {
 					closest[i] = peerDistence{p, dis}
+					break
 				}
 
 				if dis.Cmp(closest[i].Int) < 0 {
 					closest[i] = peerDistence{p, dis}
+					break
 				}
 			}
 		}
@@ -126,14 +147,15 @@ func distenceBetween(id, key []byte) *big.Int {
 
 func insertPeerIntoBucket(bucket []peer.Peer, toBeInserted peer.Peer) error {
 	for i, peer := range bucket {
-		if peer == nil {
-			bucket[i] = toBeInserted
-			return nil
+		if peer != nil {
+			if bytes.Equal(peer.ID(), toBeInserted.ID()) {
+				return nil
+			}
+			continue
 		}
 
-		if bytes.Equal(peer.ID(), toBeInserted.ID()) {
-			return nil
-		}
+		bucket[i] = toBeInserted
+		return nil
 	}
 
 	return peer.ErrNoSpaceToStorePeer

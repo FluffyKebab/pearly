@@ -70,7 +70,7 @@ func (s Service) Run() {
 			return nil
 		}
 
-		// Try to add connected peer to peerstore.
+		// Try to add peer to peerstore.
 		if err := s.tryAddPeerToStore(c); err != nil {
 			sendResponse(c, Response{Err: ErrInvalidRequest.Error()})
 			return err
@@ -79,7 +79,13 @@ func (s Service) Run() {
 		// Check if we have value localy.
 		value, err := s.storer.Get(req.Key)
 		if err == nil {
-			return sendResponse(c, Response{Value: value})
+			return sendResponse(c, Response{
+				Value: value,
+				NodeContacted: Node{
+					ID:         s.node.ID(),
+					PublicAddr: s.node.Transport().ListenAddr(),
+				},
+			})
 		}
 		if !errors.Is(err, storage.ErrNotFound) {
 			sendResponse(c, Response{Err: ErrInternalServerError.Error()})
@@ -97,7 +103,7 @@ func (s Service) Run() {
 			return errors.New("number of distences and peers returned from peerstore are diffrent")
 		}
 
-		// Convert data and filter out nodes that are not closer then we are.
+		// Convert data and calculate the distence from this node to the key.
 		thisNodeDistance, err := s.peerstore.Distance(s.node.ID(), req.Key)
 		if err != nil {
 			sendResponse(c, Response{Err: ErrInternalServerError.Error()})
@@ -106,10 +112,6 @@ func (s Service) Run() {
 
 		nodes := make([]Node, 0, len(peers))
 		for i := 0; i < len(peers); i++ {
-			if dis[i].Cmp(thisNodeDistance) > 0 {
-				continue
-			}
-
 			nodes = append(nodes, Node{peers[i].ID(), dis[i], peers[i].PublicAddr()})
 		}
 
@@ -183,15 +185,8 @@ func (s Service) tryAddPeerToStore(c transport.Conn) error {
 }
 
 func sendResponse(c transport.Conn, r Response) error {
-	var msg bytes.Buffer
-	encoder := gob.NewEncoder(&msg)
-	err := encoder.Encode(r)
-	if err != nil {
-		return err
-	}
-
-	_, err = c.Write(msg.Bytes())
-	return err
+	encoder := gob.NewEncoder(c)
+	return encoder.Encode(r)
 }
 
 func convertToError(s string) error {

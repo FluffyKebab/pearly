@@ -11,5 +11,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/multiformats/go-varint v0.0.6 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

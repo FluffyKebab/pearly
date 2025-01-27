@@ -77,8 +77,6 @@ func (n *Node) handleConn(conn transport.Conn, errChan chan error) {
 	if err != nil {
 		errChan <- err
 	}
-
-	fmt.Println("hadeled conn")
 }
 
 func (n *Node) DialPeer(ctx context.Context, p peer.Peer) (transport.Conn, error) {
@@ -88,6 +86,7 @@ func (n *Node) DialPeer(ctx context.Context, p peer.Peer) (transport.Conn, error
 func (n *Node) DialPeerUsingProcol(ctx context.Context, prtoID string, p peer.Peer) (transport.Conn, error) {
 	c, err := n.DialPeer(ctx, p)
 	if err != nil {
+		fmt.Println("dail peer using proto failed")
 		return nil, err
 	}
 

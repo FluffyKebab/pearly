@@ -59,6 +59,7 @@ func TestEncryptedConn(t *testing.T) {
 		gob.NewDecoder(conn1To2),
 		gob.NewEncoder(conn1To2),
 		nil,
+		"",
 	)
 	encryptedConn2to1 := NewConn(
 		conn2To1,
@@ -67,6 +68,7 @@ func TestEncryptedConn(t *testing.T) {
 		gob.NewDecoder(conn2To1),
 		gob.NewEncoder(conn2To1),
 		nil,
+		"",
 	)
 
 	// Sending text.
@@ -122,6 +124,7 @@ func TestEncryptedConnSmallBuffer(t *testing.T) {
 		gob.NewDecoder(conn1To2),
 		gob.NewEncoder(conn1To2),
 		nil,
+		"",
 	)
 	encryptedConn2to1 := NewConn(
 		conn2To1,
@@ -130,6 +133,7 @@ func TestEncryptedConnSmallBuffer(t *testing.T) {
 		gob.NewDecoder(conn2To1),
 		gob.NewEncoder(conn2To1),
 		nil,
+		"",
 	)
 
 	msg := []byte("hello from node 1, to node 2")
@@ -169,6 +173,7 @@ func TestEncryptedConnSmallThenLargeBuffer(t *testing.T) {
 		gob.NewDecoder(conn1To2),
 		gob.NewEncoder(conn1To2),
 		nil,
+		"",
 	)
 	encryptedConn2to1 := NewConn(
 		conn2To1,
@@ -177,6 +182,7 @@ func TestEncryptedConnSmallThenLargeBuffer(t *testing.T) {
 		gob.NewDecoder(conn2To1),
 		gob.NewEncoder(conn2To1),
 		nil,
+		"",
 	)
 
 	msg := []byte("hello from node 1, to node 2")

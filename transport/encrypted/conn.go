@@ -6,6 +6,7 @@ import (
 	"encoding/gob"
 	"io"
 	mrand "math/rand"
+	"strings"
 	"sync"
 
 	"github.com/FluffyKebab/pearly/transport"
@@ -24,6 +25,7 @@ type Conn struct {
 	unread         []byte
 	unreadReadPos  int
 	unreadWritePos int
+	remotePort     string
 }
 
 var (
@@ -41,6 +43,7 @@ func NewConn(
 	gobDecoder *gob.Decoder,
 	gobEncoder *gob.Encoder,
 	peerID []byte,
+	remotePort string,
 ) *Conn {
 	return &Conn{
 		lock:        &sync.Mutex{},
@@ -52,6 +55,7 @@ func NewConn(
 		nodePrivKey: nodePrivateKey,
 		decoder:     gobDecoder,
 		encoder:     gobEncoder,
+		remotePort:  remotePort,
 	}
 }
 
@@ -100,7 +104,12 @@ func (c *Conn) Write(p []byte) (n int, err error) {
 
 func (c *Conn) RemoteAddr() string {
 	if remoteHaver, ok := c.conn.(transport.RemoteAddrHaver); ok {
-		return remoteHaver.RemoteAddr()
+		remoteAddr := remoteHaver.RemoteAddr()
+		splitRemoteAddr := strings.Split(remoteAddr, ":")
+		if len(splitRemoteAddr) != 2 {
+			return remoteAddr
+		}
+		return strings.Join([]string{splitRemoteAddr[0], c.remotePort}, ":")
 	}
 	return ""
 }

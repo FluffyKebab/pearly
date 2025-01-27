@@ -13,6 +13,7 @@ import (
 	"github.com/FluffyKebab/pearly/transport/encrypted"
 	"github.com/FluffyKebab/pearly/transport/tcp"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/rand"
 )
 
 func TestKadmillaUncrypted(t *testing.T) {
@@ -74,6 +75,56 @@ func TestKadmillaUncrypted(t *testing.T) {
 	valueGotten1, err = node4.GetValue(ctx, key1)
 	require.NoError(t, err)
 	require.True(t, bytes.Equal(valueGotten1, value1))
+}
+
+func TestKadmilla(t *testing.T) {
+	ctx := context.Background()
+	numNodes := 20
+	numValuesStored := 30
+
+	nodes := make([]DHT, 0, numNodes)
+	for i := 0; i < numNodes; i++ {
+		newNode, errChan := createEncryptedDHTNode(t, ctx)
+		go func() {
+			err := <-errChan
+			require.NoError(t, err)
+		}()
+
+		for i := 0; i < min(3, len(nodes)); i++ {
+			previouslyAddedNode := nodes[rand.Intn(len(nodes))]
+			err := newNode.Bootstrap(ctx, peer.New(
+				nil,
+				previouslyAddedNode.node.Transport().ListenAddr(),
+			))
+			require.NoError(t, err)
+		}
+
+		nodes = append(nodes, newNode)
+	}
+
+	values := make([][]byte, 0, numValuesStored)
+	keys := make([][]byte, 0, numValuesStored)
+	for i := 0; i < numValuesStored; i++ {
+		curValue := generateRandomString(20)
+		values = append(values, []byte(curValue))
+
+		hash, err := storage.NewHasher().Hash([]byte(curValue))
+		require.NoError(t, err)
+		keys = append(keys, hash)
+	}
+
+	for i := 0; i < numValuesStored; i++ {
+		randomNode := nodes[rand.Intn(len(nodes))]
+		err := randomNode.SetValue(ctx, keys[i], values[i])
+		require.NoError(t, err)
+	}
+
+	for i := 0; i < numValuesStored; i++ {
+		randomNode := nodes[rand.Intn(len(nodes))]
+		value, err := randomNode.GetValue(ctx, keys[i])
+		require.NoError(t, err)
+		require.True(t, bytes.Equal(value, values[i]))
+	}
 }
 
 func TestBootsrap(t *testing.T) {
@@ -148,4 +199,17 @@ func createUncryptedDHTNode(t *testing.T, ctx context.Context, id []byte) (DHT, 
 	errChan, err := n.Run(ctx)
 	require.NoError(t, err)
 	return New(n), errChan, "localhost:" + port
+}
+
+func generateRandomString(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_-+=<>?~"
+	result := make([]rune, 0, length)
+
+	//rand.Seed(uint64(time.Now().UnixNano()))
+	for i := 0; i < length; i++ {
+		randomRune := rune(charset[rand.Intn(len(charset))])
+		result = append(result, randomRune)
+	}
+
+	return string(result)
 }
