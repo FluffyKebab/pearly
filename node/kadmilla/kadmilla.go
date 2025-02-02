@@ -9,7 +9,6 @@ import (
 
 	"github.com/FluffyKebab/pearly/node"
 	"github.com/FluffyKebab/pearly/peer"
-	"github.com/FluffyKebab/pearly/peer/dhtpeer"
 	"github.com/FluffyKebab/pearly/protocol/kdmgetvalue"
 	"github.com/FluffyKebab/pearly/protocol/kdmstore"
 	"github.com/FluffyKebab/pearly/storage"
@@ -26,24 +25,29 @@ type DHT struct {
 	datastore         storage.Hashtable
 	getValueService   kdmgetvalue.Service
 	storeValueService kdmstore.Service
+
+	NumPeerReturnedSet int
+	NumPeerReturnedGet int
 }
 
 var _ node.DHT = DHT{}
 
-func New(node node.Node) DHT {
-	peerstore := dhtpeer.NewStore(node.ID(), 5)
-	hashtable := storage.NewHashtable()
+func New(node node.Node, opts ...Option) DHT {
+	option := defualtOptions(node.ID())
+	for _, opt := range opts {
+		opt(option)
+	}
 
-	getValueService := kdmgetvalue.Register(node, peerstore, hashtable)
-	storeValueService := kdmstore.Register(node, hashtable)
+	getValueService := kdmgetvalue.Register(node, option.peerstore, option.datastore)
+	storeValueService := kdmstore.Register(node, option.datastore)
 
 	getValueService.Run()
 	storeValueService.Run()
 
 	return DHT{
 		node:              node,
-		peerstore:         peerstore,
-		datastore:         hashtable,
+		peerstore:         option.peerstore,
+		datastore:         option.datastore,
 		getValueService:   getValueService,
 		storeValueService: storeValueService,
 	}
@@ -58,7 +62,7 @@ func (dht DHT) SetValue(ctx context.Context, key []byte, value []byte) error {
 	errorCollection := make([]errorPeer, 0)
 
 	for {
-		newNodesFound, nodeContacted, valueStored, err := dht.searchOnePeer(ctx, nodes, key, 3)
+		newNodesFound, nodeContacted, valueStored, err := dht.searchOnePeer(ctx, nodes, key, dht.NumPeerReturnedSet)
 		if err != nil {
 			if errors.Is(err, storage.ErrNotFound) {
 				break
@@ -75,6 +79,7 @@ func (dht DHT) SetValue(ctx context.Context, key []byte, value []byte) error {
 			return ErrAllreadySet
 		}
 
+		fmt.Println(newNodesFound)
 		numNewNodesAdded := 0
 		for i := 0; i < len(newNodesFound); i++ {
 			if nodeContacted.distance.Cmp(newNodesFound[i].distance) > 0 {
@@ -82,6 +87,8 @@ func (dht DHT) SetValue(ctx context.Context, key []byte, value []byte) error {
 				numNewNodesAdded++
 			}
 		}
+
+		fmt.Println(numNewNodesAdded)
 
 		if numNewNodesAdded == 0 {
 			// This node is closer then all of thier peers to the key, therfore it should be a storer.
@@ -136,7 +143,7 @@ func (dht DHT) GetValue(ctx context.Context, key []byte) (value []byte, err erro
 	errorCollection := make([]errorPeer, 0)
 
 	for {
-		newNodesFound, nodeContacted, valueStored, err := dht.searchOnePeer(ctx, nodes, key, 10)
+		newNodesFound, nodeContacted, valueStored, err := dht.searchOnePeer(ctx, nodes, key, dht.NumPeerReturnedGet)
 		if err != nil {
 			if errors.Is(err, storage.ErrNotFound) {
 				break
