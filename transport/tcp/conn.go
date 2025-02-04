@@ -16,13 +16,11 @@ var (
 )
 
 func (c connection) Read(p []byte) (n int, err error) {
-	n, err = c.conn.Read(p)
-	return n, err
+	return c.conn.Read(p)
 }
 
 func (c connection) Write(p []byte) (n int, err error) {
-	n, err = c.conn.Write(p)
-	return n, err
+	return c.conn.Write(p)
 }
 
 func (c connection) Close() error {
