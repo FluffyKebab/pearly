@@ -16,8 +16,3 @@ type Node interface {
 	DialPeer(ctx context.Context, p peer.Peer) (transport.Conn, error)
 	DialPeerUsingProcol(ctx context.Context, prtoID string, p peer.Peer) (transport.Conn, error)
 }
-
-type DHT interface {
-	SetValue(ctx context.Context, key []byte, value []byte) error
-	GetValue(ctx context.Context, key []byte) ([]byte, error)
-}

@@ -1,4 +1,4 @@
-package kadmilla
+package kademila
 
 import (
 	"github.com/FluffyKebab/pearly/peer"

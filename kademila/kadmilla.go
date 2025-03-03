@@ -1,4 +1,4 @@
-package kadmilla
+package kademila
 
 import (
 	"bytes"
@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/FluffyKebab/pearly/kademila/kdmgetvalue"
+	"github.com/FluffyKebab/pearly/kademila/kdmstore"
 	"github.com/FluffyKebab/pearly/node"
 	"github.com/FluffyKebab/pearly/peer"
-	"github.com/FluffyKebab/pearly/protocol/kdmgetvalue"
-	"github.com/FluffyKebab/pearly/protocol/kdmstore"
 	"github.com/FluffyKebab/pearly/storage"
 )
 
@@ -37,8 +37,6 @@ type DHT struct {
 	// opporation to be seen as succsesful. Defaults to 2.
 	MinNumStores int
 }
-
-var _ node.DHT = DHT{}
 
 func New(node node.Node, opts ...Option) DHT {
 	option := defualtOptions(node.ID())

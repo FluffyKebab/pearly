@@ -1,4 +1,4 @@
-package kadmilla
+package kademila
 
 import (
 	"bytes"
