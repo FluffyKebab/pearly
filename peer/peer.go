@@ -9,10 +9,7 @@ var ErrNoSpaceToStorePeer = errors.New("no space in bucket for peer")
 
 type Peer interface {
 	ID() []byte
-	SetID(id []byte) *peer
-
 	PublicAddr() string
-	SetPublicAddr(addr string) *peer
 }
 
 type Store interface {

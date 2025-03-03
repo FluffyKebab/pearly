@@ -45,6 +45,8 @@ func TestKadmillaUncrypted(t *testing.T) {
 	// Setting a value from node 2 with a key that is closest to 1.
 	key1 := []byte{0b00000000}
 	value1 := []byte{0b00100001}
+	node2.MaxNumStores = 1
+	node2.MinNumStores = 1
 	err = node2.SetValue(ctx, key1, value1)
 	require.NoError(t, err)
 

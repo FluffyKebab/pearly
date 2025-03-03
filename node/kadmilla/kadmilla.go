@@ -28,6 +28,14 @@ type DHT struct {
 
 	NumPeerReturnedSet int
 	NumPeerReturnedGet int
+
+	// The maximum number of times a value is replacted accros the newtork
+	// when setting a value.
+	MaxNumStores int
+
+	// The minimum amount of nodes that need to store a value for a set
+	// opporation to be seen as succsesful. Defaults to 2.
+	MinNumStores int
 }
 
 var _ node.DHT = DHT{}
@@ -50,20 +58,25 @@ func New(node node.Node, opts ...Option) DHT {
 		datastore:         option.datastore,
 		getValueService:   getValueService,
 		storeValueService: storeValueService,
+
+		NumPeerReturnedSet: 10,
+		NumPeerReturnedGet: 10,
+		MaxNumStores:       5,
+		MinNumStores:       2,
 	}
 }
 
 func (dht DHT) SetValue(ctx context.Context, key []byte, value []byte) error {
-	nodes, err := dht.intilizeSearchNodeWithSelf(key)
+	nodes, err := dht.intilizeSearchNodeWithSelfForSet(key)
 	if err != nil {
 		return err
 	}
-	peersThatShouldStoreValue := make([]peer.Peer, 0)
-	errorCollection := make([]errorPeer, 0)
 
+	errorCollection := make([]errorPeer, 0)
 	for {
 		newNodesFound, nodeContacted, valueStored, err := dht.searchOnePeer(ctx, nodes, key, dht.NumPeerReturnedSet)
 		if err != nil {
+			// There are no search nodes left that are not searched.
 			if errors.Is(err, storage.ErrNotFound) {
 				break
 			}
@@ -79,27 +92,45 @@ func (dht DHT) SetValue(ctx context.Context, key []byte, value []byte) error {
 			return ErrAllreadySet
 		}
 
-		fmt.Println(newNodesFound)
 		numNewNodesAdded := 0
-		for i := 0; i < len(newNodesFound); i++ {
-			if nodeContacted.distance.Cmp(newNodesFound[i].distance) > 0 {
-				nodes = addSearchNode(nodes, newNodesFound[i])
-				numNewNodesAdded++
+		for _, newNode := range newNodesFound {
+			for i := 0; i < len(nodes); i++ {
+				if nodes[i].peer == nil {
+					nodes[i] = newNode
+					numNewNodesAdded++
+					break
+				}
+
+				if bytes.Equal(nodes[i].peer.ID(), newNode.peer.ID()) {
+					break
+				}
+
+				if newNode.distance.Cmp(nodes[i].distance) < 0 {
+					nodes[i] = newNode
+					numNewNodesAdded++
+					break
+				}
 			}
 		}
 
-		fmt.Println(numNewNodesAdded)
-
 		if numNewNodesAdded == 0 {
-			// This node is closer then all of thier peers to the key, therfore it should be a storer.
-			peersThatShouldStoreValue = append(peersThatShouldStoreValue, nodeContacted.peer)
+			break
 		}
 	}
 
-	if len(peersThatShouldStoreValue) == 0 {
+	resultNodes := make([]searchNode, 0, len(nodes))
+	for _, node := range nodes {
+		if node.peer == nil {
+			break
+		}
+		resultNodes = append(resultNodes, node)
+	}
+
+	if len(resultNodes) < dht.MinNumStores {
 		return fmt.Errorf(
-			"%w: unable to reach enough peers to find storers: [%w]",
+			"%w: unable to find minum amount of storers (%v): [%w]",
 			ErrSettingFailed,
+			dht.MinNumStores,
 			combineErrors(errorCollection),
 		)
 	}
@@ -111,24 +142,25 @@ func (dht DHT) SetValue(ctx context.Context, key []byte, value []byte) error {
 		}
 	}
 
-	failedStored := make([]error, 0)
-	for _, peer := range peersThatShouldStoreValue {
-		err := dht.storeValueService.Do(ctx, kdmstore.Request{Key: key, Value: value}, peer)
+	failedStored := make([]errorPeer, 0)
+	for _, node := range resultNodes {
+		err := dht.storeValueService.Do(ctx, kdmstore.Request{Key: key, Value: value}, node.peer)
 		if err != nil {
 			if !(errors.Is(err, kdmstore.ErrInvalidResponse) || errors.Is(err, kdmstore.ErrUnableToReachPeer)) {
 				return err
 			}
 
-			failedStored = append(failedStored, err)
+			failedStored = append(failedStored, errorPeer{err: err})
 		}
 	}
 
-	if len(peersThatShouldStoreValue) == len(failedStored) {
+	if len(resultNodes)-len(failedStored) < dht.MinNumStores {
 		return fmt.Errorf(
-			"%w: unable to store value in any of the %v storers found: %v",
+			"%w: number of succseful duplications of value accros the network (%v) is less then the minium set (%v). %w",
 			ErrSettingFailed,
-			len(peersThatShouldStoreValue),
-			failedStored,
+			len(resultNodes)-len(failedStored),
+			dht.MinNumStores,
+			combineErrors(failedStored),
 		)
 	}
 
@@ -136,7 +168,7 @@ func (dht DHT) SetValue(ctx context.Context, key []byte, value []byte) error {
 }
 
 func (dht DHT) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
-	nodes, err := dht.intilizeSearchNodeWithSelf(key)
+	nodes, err := dht.intilizeSearchNodeWithSelfForGet(key)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +211,7 @@ func (dht DHT) Bootstrap(ctx context.Context, peerInNetwork peer.Peer) error {
 		return fmt.Errorf("self lookup failed: %w", err)
 	}
 
-	return dht.peerstore.AddPeer(peerInNetwork.SetID(response.NodeContacted.ID))
+	return dht.peerstore.AddPeer(peer.New(response.NodeContacted.ID, peerInNetwork.PublicAddr()))
 }
 
 func (dht DHT) searchOnePeer(
@@ -229,18 +261,35 @@ func (dht DHT) searchOnePeer(
 	return newNodesFound, node, nil, nil
 }
 
-func (dht DHT) intilizeSearchNodeWithSelf(key []byte) ([]searchNode, error) {
+func (dht DHT) intilizeSearchNodeWithSelfForSet(key []byte) ([]searchNode, error) {
 	selfDistance, err := dht.peerstore.Distance(dht.node.ID(), key)
 	if err != nil {
 		return nil, err
 	}
 
-	return []searchNode{
-		{
-			peer:     peer.New(dht.node.ID(), dht.node.Transport().ListenAddr()),
-			distance: selfDistance,
-		},
-	}, nil
+	if dht.MaxNumStores <= 0 {
+		return nil, errors.New("MaxNumStores must be larger then 0")
+	}
+
+	res := make([]searchNode, dht.MaxNumStores)
+	res[0] = searchNode{
+		peer:     peer.New(dht.node.ID(), dht.node.Transport().ListenAddr()),
+		distance: selfDistance,
+	}
+
+	return res, nil
+}
+
+func (dht DHT) intilizeSearchNodeWithSelfForGet(key []byte) ([]searchNode, error) {
+	selfDistance, err := dht.peerstore.Distance(dht.node.ID(), key)
+	if err != nil {
+		return nil, err
+	}
+
+	return []searchNode{{
+		peer:     peer.New(dht.node.ID(), dht.node.Transport().ListenAddr()),
+		distance: selfDistance,
+	}}, nil
 }
 
 type searchNode struct {
@@ -259,10 +308,14 @@ func addSearchNode(nodes []searchNode, n searchNode) []searchNode {
 func closestNode(nodes []searchNode) (*searchNode, error) {
 	var closest *searchNode
 	for i := 0; i < len(nodes); i++ {
+		if nodes[i].peer == nil {
+			continue
+		}
 		if nodes[i].searchDone {
 			continue
 		}
-		if closest == nil || nodes[i].distance == nil {
+
+		if closest == nil {
 			closest = &nodes[i]
 			continue
 		}
@@ -280,6 +333,10 @@ func closestNode(nodes []searchNode) (*searchNode, error) {
 
 func peerAllreadyAdded(nodes []searchNode, p peer.Peer) bool {
 	for _, node := range nodes {
+		if node.peer == nil {
+			return false
+		}
+
 		if bytes.Equal(node.peer.ID(), p.ID()) {
 			return true
 		}

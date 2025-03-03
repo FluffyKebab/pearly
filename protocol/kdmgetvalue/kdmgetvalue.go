@@ -133,15 +133,13 @@ func (s Service) Do(ctx context.Context, req Request, p peer.Peer) (Response, er
 	}
 	defer conn.Close()
 
-	encoder := gob.NewEncoder(conn)
-	err = encoder.Encode(req)
+	err = gob.NewEncoder(conn).Encode(req)
 	if err != nil {
 		return Response{}, fmt.Errorf("%w: %w", ErrUnableToReachPeer, err)
 	}
 
 	var response Response
-	decoder := gob.NewDecoder(conn)
-	err = decoder.Decode(&response)
+	err = gob.NewDecoder(conn).Decode(&response)
 	if err != nil {
 		return Response{}, fmt.Errorf("%w: %w", ErrInvalidResponse, err)
 	}
