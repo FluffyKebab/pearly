@@ -1,8 +1,11 @@
 package encrypted
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/gob"
+	"fmt"
 	"strings"
 
 	"github.com/FluffyKebab/pearly/transport"
@@ -38,7 +41,10 @@ func (t Transport) upgradeConn(c transport.Conn) (*Conn, error) {
 		return nil, err
 	}
 
-	// TODO: validate peer
+	acctuallID := sha256.Sum256(peerData.PublicKey)
+	if !bytes.Equal(peerData.ID, acctuallID[:]) {
+		return nil, fmt.Errorf("peer public key does not match with their node ID")
+	}
 
 	return NewConn(c, peerPubKey, t.privateKey, decoder, encoder, peerData.ID, peerData.ListeningPort), nil
 }

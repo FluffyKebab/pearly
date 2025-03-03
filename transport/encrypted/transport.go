@@ -29,13 +29,11 @@ func NewTransport(underalying transport.Transport) (Transport, error) {
 		return Transport{}, err
 	}
 	pubKeyBytes := x509.MarshalPKCS1PublicKey(pubKey)
-
-	nodeID := sha256.New()
-	nodeID.Write(pubKeyBytes)
+	nodeID := sha256.Sum256(pubKeyBytes)
 
 	return Transport{
 		underlaying: underalying,
-		id:          nodeID.Sum(nil),
+		id:          nodeID[:],
 		privateKey:  privKey,
 		publicKey:   pubKeyBytes,
 	}, nil
