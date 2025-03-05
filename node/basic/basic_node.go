@@ -16,6 +16,7 @@ type Node struct {
 	transport     transport.Transport
 	protocolMuxer protocolmux.Muxer
 	connHandler   func(transport.Conn) error
+	errChan       chan error
 }
 
 var _ node.Node = &Node{}
@@ -25,6 +26,7 @@ func New(t transport.Transport, id []byte) *Node {
 		id:            id,
 		transport:     t,
 		protocolMuxer: multistream.NewMuxer(),
+		errChan:       make(chan error),
 	}
 }
 
@@ -34,7 +36,6 @@ func (n *Node) Run(ctx context.Context) (<-chan error, error) {
 		return nil, err
 	}
 
-	errChan := make(chan error)
 	go func() {
 		for {
 			select {
@@ -42,7 +43,7 @@ func (n *Node) Run(ctx context.Context) (<-chan error, error) {
 				if !ok {
 					return
 				}
-				errChan <- err
+				n.errChan <- err
 			case <-ctx.Done():
 				return
 			}
@@ -53,21 +54,21 @@ func (n *Node) Run(ctx context.Context) (<-chan error, error) {
 		for {
 			select {
 			case conn := <-connChan:
-				go n.handleConn(conn, errChan)
+				go n.handleConn(conn)
 			case <-ctx.Done():
 				return
 			}
 		}
 	}()
 
-	return errChan, nil
+	return n.errChan, nil
 }
 
-func (n *Node) handleConn(conn transport.Conn, errChan chan error) {
+func (n *Node) handleConn(conn transport.Conn) {
 	if n.connHandler != nil {
 		err := n.connHandler(conn)
 		if err != nil {
-			errChan <- err
+			n.errChan <- err
 		}
 
 		return
@@ -75,7 +76,7 @@ func (n *Node) handleConn(conn transport.Conn, errChan chan error) {
 
 	err := n.protocolMuxer.HandleConn(conn)
 	if err != nil {
-		errChan <- err
+		n.errChan <- err
 	}
 }
 
@@ -92,6 +93,10 @@ func (n *Node) DialPeerUsingProcol(ctx context.Context, prtoID string, p peer.Pe
 
 	err = n.protocolMuxer.SelectProtocol(ctx, prtoID, c)
 	return c, err
+}
+
+func (n *Node) SendError(err error) {
+	n.errChan <- err
 }
 
 func (n *Node) ID() []byte {

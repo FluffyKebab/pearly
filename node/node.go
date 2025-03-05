@@ -15,4 +15,5 @@ type Node interface {
 	RegisterProtocol(protoID string, handler func(transport.Conn) error)
 	DialPeer(ctx context.Context, p peer.Peer) (transport.Conn, error)
 	DialPeerUsingProcol(ctx context.Context, prtoID string, p peer.Peer) (transport.Conn, error)
+	SendError(err error)
 }

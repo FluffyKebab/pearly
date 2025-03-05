@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/FluffyKebab/pearly/kademila/dhtpeer"
 	"github.com/FluffyKebab/pearly/node/basic"
 	"github.com/FluffyKebab/pearly/peer"
-	"github.com/FluffyKebab/pearly/peer/dhtpeer"
 	"github.com/FluffyKebab/pearly/storage"
 	"github.com/FluffyKebab/pearly/testutil"
 	"github.com/FluffyKebab/pearly/transport/encrypted"

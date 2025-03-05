@@ -1,8 +1,8 @@
 package kademila
 
 import (
+	"github.com/FluffyKebab/pearly/kademila/dhtpeer"
 	"github.com/FluffyKebab/pearly/peer"
-	"github.com/FluffyKebab/pearly/peer/dhtpeer"
 	"github.com/FluffyKebab/pearly/storage"
 )
 
