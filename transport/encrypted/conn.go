@@ -68,6 +68,7 @@ func (c *Conn) Read(p []byte) (n int, err error) {
 	// There are no more unread so we restart the buffer.
 	c.unreadReadPos = 0
 	c.unreadWritePos = 0
+
 	var pckt packet
 	err = c.decoder.Decode(&pckt)
 	if err != nil {
