@@ -3,7 +3,6 @@ package transform
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"time"
 
@@ -100,33 +99,45 @@ func (c *Conn) readAtleastOnePacketIntoUnread() (int, error) {
 	}
 
 	curPacketSize := int(binary.LittleEndian.Uint32(c.unread[:_lenPacketSize]))
-	fmt.Println("curPak size", curPacketSize)
-
 	if curPacketSize > _maxPacketSize {
 		return 0, errors.New("packet size is to large")
 	}
-	if curPacketSize > len(c.unread) {
-		c.unread = append(c.unread, make([]byte, curPacketSize-len(c.unread))...)
+	if curPacketSize+_lenPacketSize > len(c.unread) {
+		c.unread = append(c.unread, make([]byte, curPacketSize+_lenPacketSize-len(c.unread))...)
 	}
 
 	// Read into unread untill the full packet is read.
-	for curPacketRead < curPacketSize {
+	for curPacketRead-_lenPacketSize < curPacketSize {
 		curRead, err := c.reader.Read(c.unread[curPacketRead:])
 		if err != nil {
 			return 0, err
+		}
+		if curRead == 0 {
+			return 0, io.ErrNoProgress
 		}
 		curPacketRead += curRead
 	}
 
 	if curPacketRead > curPacketSize {
-		c.writeIntoPacketOwerflow(c.unread[curPacketSize:], curPacketRead-curPacketSize)
+		c.writeIntoPacketOwerflow(
+			c.unread[curPacketSize+_lenPacketSize:],
+			curPacketRead-curPacketSize-_lenPacketSize,
+		)
 	}
 
 	return curPacketSize, nil
 }
 
 func (c *Conn) writeIntoPacketOwerflow(data []byte, size int) {
+	if len(c.packetOwerflow) < size {
+		c.packetOwerflow = append(
+			c.packetOwerflow,
+			make([]byte, size-len(c.packetOwerflow))...,
+		)
+	}
+
 	c.packetOwerflowWritten = copy(c.packetOwerflow, data[:size])
+	c.packetOwerflowWritten = size
 }
 
 func (c *Conn) readUnread(p []byte) (int, error) {
@@ -160,11 +171,11 @@ func (c *Conn) Write(p []byte) (n int, err error) {
 
 	// If the size is to large we split the packet in two.
 	if len(transformedData) > _maxPacketSize {
-		n1, err := c.Write(p[len(p)/2:])
+		n1, err := c.Write(p[:len(p)/2])
 		if err != nil {
 			return 0, err
 		}
-		n2, err := c.Write(p[:len(p)/2])
+		n2, err := c.Write(p[len(p)/2:])
 		return n1 + n2, err
 	}
 
