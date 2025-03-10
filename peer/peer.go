@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"crypto/sha256"
 	"errors"
 	"math/big"
 )
@@ -9,6 +10,7 @@ var ErrNoSpaceToStorePeer = errors.New("no space in bucket for peer")
 
 type Peer interface {
 	ID() []byte
+	PublicKey() []byte
 	PublicAddr() string
 }
 
@@ -22,6 +24,7 @@ type Store interface {
 
 type peer struct {
 	id         []byte
+	pubKey     []byte
 	publicAddr string
 }
 
@@ -33,19 +36,23 @@ func (p *peer) PublicAddr() string {
 	return p.publicAddr
 }
 
-func (p *peer) SetID(id []byte) *peer {
-	p.id = id
-	return p
-}
-
-func (p *peer) SetPublicAddr(addr string) *peer {
-	p.publicAddr = addr
-	return p
+func (p *peer) PublicKey() []byte {
+	return p.pubKey
 }
 
 func New(id []byte, addr string) Peer {
 	return &peer{
 		id:         id,
 		publicAddr: addr,
+		pubKey:     make([]byte, 0),
+	}
+}
+
+func NewWithPublicKey(addr string, pubKey []byte) Peer {
+	id := sha256.Sum256(pubKey)
+	return &peer{
+		id:         id[:],
+		publicAddr: addr,
+		pubKey:     pubKey,
 	}
 }

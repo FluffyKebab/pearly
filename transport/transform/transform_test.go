@@ -3,7 +3,6 @@ package transform
 import (
 	"crypto/rand"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -61,8 +60,8 @@ func TestTransformerSingleSmallMessage(t *testing.T) {
 	}
 	conn2To1Underlaying := &mockedConn{}
 
-	conn1To2 := NewConn(conn1To2Underlaying, testTransformerFlip, testTransformerFlip, time.Second)
-	conn2To1 := NewConn(conn2To1Underlaying, testTransformerFlip, testTransformerFlip, time.Second)
+	conn1To2 := NewConn(conn1To2Underlaying, testTransformerFlip, testTransformerFlip)
+	conn2To1 := NewConn(conn2To1Underlaying, testTransformerFlip, testTransformerFlip)
 
 	msgSent := make([]byte, 10)
 	_, err := rand.Read(msgSent)
@@ -93,8 +92,8 @@ func TestTransformerMultipleSmallMessages(t *testing.T) {
 	}
 	conn2To1Underlaying := &mockedConn{}
 
-	conn1To2 := NewConn(conn1To2Underlaying, testTransformerFlip, testTransformerFlip, time.Second)
-	conn2To1 := NewConn(conn2To1Underlaying, testTransformerFlip, testTransformerFlip, time.Second)
+	conn1To2 := NewConn(conn1To2Underlaying, testTransformerFlip, testTransformerFlip)
+	conn2To1 := NewConn(conn2To1Underlaying, testTransformerFlip, testTransformerFlip)
 
 	msgs := make([][]byte, 10)
 	for i := 0; i < len(msgs); i++ {
@@ -129,8 +128,8 @@ func TestTransformerSingleLargeMessage(t *testing.T) {
 	}
 	conn2To1Underlaying := &mockedConn{}
 
-	conn1To2 := NewConn(conn1To2Underlaying, testTransformerNone, testTransformerNone, time.Second)
-	conn2To1 := NewConn(conn2To1Underlaying, testTransformerNone, testTransformerNone, time.Second)
+	conn1To2 := NewConn(conn1To2Underlaying, testTransformerNone, testTransformerNone)
+	conn2To1 := NewConn(conn2To1Underlaying, testTransformerNone, testTransformerNone)
 
 	msgSent := make([]byte, 19*1048)
 	_, err := rand.Read(msgSent)

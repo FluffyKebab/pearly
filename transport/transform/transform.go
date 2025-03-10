@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"time"
 
 	"github.com/FluffyKebab/pearly/transport"
 )
@@ -20,10 +19,9 @@ type Conn struct {
 	reader      io.Reader
 	writer      io.Writer
 	closer      io.Closer
-	transform   TransformFunc
-	detransform TransformFunc
+	Transform   TransformFunc
+	Detransform TransformFunc
 
-	maxWaitTime    time.Duration
 	unread         []byte
 	unreadReadPos  int
 	unreadWritePos int
@@ -42,15 +40,13 @@ func NewConn(
 	underlayingConn transport.Conn,
 	transform TransformFunc,
 	detransform TransformFunc,
-	maxWaitTime time.Duration,
 ) *Conn {
 	return &Conn{
 		reader:         underlayingConn,
 		writer:         underlayingConn,
 		closer:         underlayingConn,
-		transform:      transform,
-		detransform:    detransform,
-		maxWaitTime:    maxWaitTime,
+		Transform:      transform,
+		Detransform:    detransform,
 		unread:         make([]byte, _maxPacketSize/2),
 		packetOwerflow: make([]byte, 0),
 	}
@@ -71,9 +67,12 @@ func (c *Conn) Read(p []byte) (int, error) {
 		return 0, err
 	}
 
-	transformed, err := c.detransform(c.unread[_lenPacketSize:(_lenPacketSize + packetSize)])
-	if err != nil {
-		return 0, err
+	transformed := c.unread[_lenPacketSize:(_lenPacketSize + packetSize)]
+	if c.Detransform != nil {
+		transformed, err = c.Detransform(transformed)
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	c.writeUread(transformed)
@@ -164,9 +163,12 @@ func (c *Conn) writeUread(p []byte) {
 }
 
 func (c *Conn) Write(p []byte) (n int, err error) {
-	transformedData, err := c.transform(p)
-	if err != nil {
-		return 0, err
+	transformedData := p
+	if c.Transform != nil {
+		transformedData, err = c.Transform(p)
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	// If the size is to large we split the packet in two.

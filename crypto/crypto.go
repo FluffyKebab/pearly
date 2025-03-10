@@ -8,11 +8,11 @@ import (
 )
 
 type Encrypter interface {
-	Encrypt([]byte) []byte
+	Encrypt([]byte) ([]byte, error)
 }
 
 type Decrypter interface {
-	Decrypt([]byte) []byte
+	Decrypt([]byte) ([]byte, error)
 }
 
 type EncryptDecrypter interface {
