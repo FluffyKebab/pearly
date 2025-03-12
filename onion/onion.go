@@ -126,7 +126,7 @@ func sendSuccses(w io.Writer) error {
 }
 
 func upgradeToSymetriclyEncrypted(c *transform.Conn, secretKey []byte) error {
-	encryption, err := crypto.NewSymetricEncryprion(secretKey)
+	encryption, err := crypto.NewSymetricEncryption(secretKey)
 	if err != nil {
 		return err
 	}

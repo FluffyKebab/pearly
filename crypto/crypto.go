@@ -24,7 +24,7 @@ type symetricEncryptor struct {
 	aead cipher.AEAD
 }
 
-func NewSymetricEncryprion(secretKey []byte) (symetricEncryptor, error) {
+func NewSymetricEncryption(secretKey []byte) (symetricEncryptor, error) {
 	aes, err := aes.NewCipher(secretKey)
 	if err != nil {
 		return symetricEncryptor{}, err
@@ -56,4 +56,17 @@ func (e symetricEncryptor) Decrypt(chiper []byte) ([]byte, error) {
 	nonce := chiper[:e.aead.NonceSize()]
 	chipertext := chiper[e.aead.NonceSize():]
 	return e.aead.Open(nil, nonce, chipertext, nil)
+}
+
+func NewSymetricEncryptionSecretKey() []byte {
+	key := make([]byte, 128)
+	rand.Read(key)
+	return key
+}
+
+type asymetricEncryptor struct {
+}
+
+func (e asymetricEncryptor) Encrypt(plaintext []byte) ([]byte, error) {
+	return nil, nil
 }

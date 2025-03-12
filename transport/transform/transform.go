@@ -203,3 +203,7 @@ func prependInt(p []byte, n int) []byte {
 	binary.LittleEndian.PutUint32(p, uint32(n))
 	return p
 }
+
+func NOPTransform(d []byte) ([]byte, error) {
+	return d, nil
+}
