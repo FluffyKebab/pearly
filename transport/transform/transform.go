@@ -117,7 +117,7 @@ func (c *Conn) readAtleastOnePacketIntoUnread() (int, error) {
 		curPacketRead += curRead
 	}
 
-	if curPacketRead > curPacketSize {
+	if curPacketRead-_lenPacketSize > curPacketSize {
 		c.writeIntoPacketOwerflow(
 			c.unread[curPacketSize+_lenPacketSize:],
 			curPacketRead-curPacketSize-_lenPacketSize,
@@ -198,7 +198,7 @@ func (c *Conn) ReadByte() (byte, error) {
 }
 
 func prependInt(p []byte, n int) []byte {
-	p = append(p, make([]byte, 8)...)
+	p = append(p, make([]byte, _lenPacketSize)...)
 	copy(p[_lenPacketSize:], p)
 	binary.LittleEndian.PutUint32(p, uint32(n))
 	return p

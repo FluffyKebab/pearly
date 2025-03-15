@@ -59,7 +59,7 @@ func (e symetricEncryptor) Decrypt(chiper []byte) ([]byte, error) {
 }
 
 func NewSymetricEncryptionSecretKey() []byte {
-	key := make([]byte, 128)
+	key := make([]byte, 32)
 	rand.Read(key)
 	return key
 }

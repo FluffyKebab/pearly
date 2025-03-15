@@ -41,6 +41,12 @@ type Service struct {
 	PublicKeyDecrypter crypto.Decrypter
 }
 
+func RegisterService(n node.Node) *Service {
+	return &Service{
+		Node: n,
+	}
+}
+
 func (s *Service) Run() {
 	s.Node.RegisterProtocol(OnionProtoID, func(c transport.Conn) error {
 		if err := s.handler(c); err != nil {
@@ -56,7 +62,11 @@ func (s *Service) Run() {
 }
 
 func (s *Service) handler(c transport.Conn) error {
-	previousConn := transform.NewConn(c, nil, s.PublicKeyDecrypter.Decrypt)
+	previousConn := transform.NewConn(c, nil, nil)
+	if s.PublicKeyDecrypter != nil {
+		previousConn.Detransform = s.PublicKeyDecrypter.Decrypt
+	}
+
 	req, err := s.readRequest(previousConn)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidRequest, err)
@@ -131,8 +141,14 @@ func upgradeToSymetriclyEncrypted(c *transform.Conn, secretKey []byte) error {
 		return err
 	}
 
-	c.Transform = encryption.Encrypt
-	c.Detransform = encryption.Decrypt
+	c.Transform = func(b []byte) ([]byte, error) {
+		res, err := encryption.Encrypt(b)
+		return res, err
+	}
+	c.Detransform = func(b []byte) ([]byte, error) {
+		res, err := encryption.Decrypt(b)
+		return res, err
+	}
 	return nil
 }
 
@@ -142,7 +158,9 @@ func copyWithRandomWait(dst io.Writer, src io.Reader, wait time.Duration) error 
 	var err error
 
 	for {
-		time.Sleep(time.Duration((rand.Int64N(int64(wait)))))
+		if int64(wait) > 0 {
+			time.Sleep(time.Duration((rand.Int64N(int64(wait)))))
+		}
 
 		nr, er := src.Read(buf)
 		if nr > 0 {
