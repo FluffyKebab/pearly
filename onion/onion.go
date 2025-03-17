@@ -25,7 +25,8 @@ const (
 )
 
 type Request struct {
-	//
+	// SecretKey is the key that will be used for encrytpion and decryprion by
+	// the relay.
 	SecretKey []byte
 
 	// NextNodeAddr is the contact information for the next node in the circut.

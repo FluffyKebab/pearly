@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sync"
 
 	"github.com/FluffyKebab/pearly/kademila/kdmgetvalue"
 	"github.com/FluffyKebab/pearly/kademila/kdmstore"
@@ -28,6 +29,7 @@ type DHT struct {
 
 	NumPeerReturnedSet int
 	NumPeerReturnedGet int
+	NumWorkersGet      int
 
 	// The maximum number of times a value is replacted accros the newtork
 	// when setting a value.
@@ -59,6 +61,7 @@ func New(node node.Node, opts ...Option) DHT {
 
 		NumPeerReturnedSet: 10,
 		NumPeerReturnedGet: 10,
+		NumWorkersGet:      3,
 		MaxNumStores:       5,
 		MinNumStores:       2,
 	}
@@ -90,34 +93,14 @@ func (dht DHT) SetValue(ctx context.Context, key []byte, value []byte) error {
 			return ErrAllreadySet
 		}
 
-		numNewNodesAdded := 0
-		for _, newNode := range newNodesFound {
-			for i := 0; i < len(nodes); i++ {
-				if nodes[i].peer == nil {
-					nodes[i] = newNode
-					numNewNodesAdded++
-					break
-				}
-
-				if bytes.Equal(nodes[i].peer.ID(), newNode.peer.ID()) {
-					break
-				}
-
-				if newNode.distance.Cmp(nodes[i].distance) < 0 {
-					nodes[i] = newNode
-					numNewNodesAdded++
-					break
-				}
-			}
-		}
-
+		numNewNodesAdded := nodes.addSearchNodeIfCloser(newNodesFound)
 		if numNewNodesAdded == 0 {
 			break
 		}
 	}
 
-	resultNodes := make([]searchNode, 0, len(nodes))
-	for _, node := range nodes {
+	resultNodes := make([]searchNode, 0, len(nodes.nodes))
+	for _, node := range nodes.nodes {
 		if node.peer == nil {
 			break
 		}
@@ -170,34 +153,98 @@ func (dht DHT) GetValue(ctx context.Context, key []byte) (value []byte, err erro
 	if err != nil {
 		return nil, err
 	}
-	errorCollection := make([]errorPeer, 0)
 
-	for {
-		newNodesFound, nodeContacted, valueStored, err := dht.searchOnePeer(ctx, nodes, key, dht.NumPeerReturnedGet)
-		if err != nil {
-			if errors.Is(err, storage.ErrNotFound) {
-				break
-			}
-			if isExpectedKDMError(err) {
-				errorCollection = append(errorCollection, errorPeer{err, nodeContacted.peer})
-				continue
-			}
-			return nil, err
-		}
-		if valueStored != nil {
-			return valueStored, nil
-		}
-
-		for i := 0; i < len(newNodesFound); i++ {
-			nodes = addSearchNode(nodes, newNodesFound[i])
-		}
+	finalValue, err := dht.doGetValueSelfSearch(key, nodes)
+	if err != nil || finalValue != nil {
+		return finalValue, err
 	}
 
-	return nil, fmt.Errorf(
-		"%w: possible errors connacting peers: [%w]",
-		storage.ErrNotFound,
-		combineErrors(errorCollection),
-	)
+	errorCollection := make([]errorPeer, 0)
+
+	type finalResult struct {
+		res []byte
+		err error
+	}
+	finalResultMutex := new(sync.Mutex)
+	var res *finalResult
+
+	wg := new(sync.WaitGroup)
+	wg.Add(dht.NumWorkersGet)
+
+	for i := 0; i < dht.NumWorkersGet; i++ {
+		go func() {
+			for {
+				if res != nil {
+					wg.Done()
+					return
+				}
+
+				newNodesFound, nodeContacted, valueStored, err := dht.searchOnePeer(
+					ctx,
+					nodes,
+					key,
+					dht.NumPeerReturnedGet,
+				)
+				if err != nil {
+					if errors.Is(err, storage.ErrNotFound) {
+						wg.Done()
+						return
+					}
+					if isExpectedKDMError(err) {
+						errorCollection = append(errorCollection, errorPeer{err, nodeContacted.peer})
+						continue
+					}
+				}
+				if valueStored != nil || err != nil {
+					finalResultMutex.Lock()
+					defer finalResultMutex.Unlock()
+					if res != nil {
+						wg.Done()
+						return
+					}
+					res = &finalResult{
+						res: valueStored,
+						err: err,
+					}
+					wg.Done()
+					return
+				}
+
+				for _, node := range newNodesFound {
+					nodes.addSearchNode(node)
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+	if res == nil {
+		return nil, fmt.Errorf(
+			"%w: possible errors connacting peers: [%w]",
+			storage.ErrNotFound,
+			combineErrors(errorCollection),
+		)
+	}
+
+	return res.res, res.err
+}
+
+func (dht DHT) doGetValueSelfSearch(key []byte, nodes *searchNodes) ([]byte, error) {
+	response, err := dht.getValueService.HandleRequest(kdmgetvalue.Request{
+		Key: key,
+		K:   dht.NumPeerReturnedGet,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if response.Value != nil {
+		return response.Value, nil
+	}
+
+	for _, node := range dht.convertToSearchNodes(response.ClosestNodes) {
+		nodes.addSearchNode(node)
+	}
+	return nil, nil
 }
 
 func (dht DHT) Bootstrap(ctx context.Context, peerInNetwork peer.Peer) error {
@@ -214,11 +261,11 @@ func (dht DHT) Bootstrap(ctx context.Context, peerInNetwork peer.Peer) error {
 
 func (dht DHT) searchOnePeer(
 	ctx context.Context,
-	nodes []searchNode,
+	nodes *searchNodes,
 	hashedKey []byte,
 	k int,
 ) (newNodesFound []searchNode, nodeContacted *searchNode, value []byte, err error) {
-	node, err := closestNode(nodes)
+	node, err := nodes.getClosestNode()
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -228,7 +275,6 @@ func (dht DHT) searchOnePeer(
 		Key: hashedKey,
 		K:   k,
 	}, node.peer)
-
 	if err != nil {
 		return nil, node, nil, err
 	}
@@ -236,30 +282,131 @@ func (dht DHT) searchOnePeer(
 		return nil, node, response.Value, nil
 	}
 
-	// Converting the response to search nodes and trying to add peers to the peerstore.
-	newNodesFound = make([]searchNode, 0, len(response.ClosestNodes))
-	for i := 0; i < len(response.ClosestNodes); i++ {
-		curNode := response.ClosestNodes[i]
-		curPeer := peer.New(curNode.ID, curNode.PublicAddr)
+	newNodesFound = dht.convertToSearchNodes(response.ClosestNodes)
 
-		err = dht.peerstore.AddPeer(curPeer)
-		if err != nil && !errors.Is(err, peer.ErrNoSpaceToStorePeer) {
-			return nil, node, nil, fmt.Errorf(
-				"adding peer (%s, %s) to peerstore: %w", curPeer.ID(), curPeer.PublicAddr(), err,
-			)
-		}
+	err = dht.addNodesToPeerstore(newNodesFound)
+	return newNodesFound, node, nil, err
+}
+
+func (dht DHT) convertToSearchNodes(closestNodes []kdmgetvalue.Node) []searchNode {
+	newNodesFound := make([]searchNode, 0, len(closestNodes))
+	for _, node := range closestNodes {
+		curPeer := peer.New(node.ID, node.PublicAddr)
 
 		newNodesFound = append(newNodesFound, searchNode{
 			peer:       curPeer,
-			distance:   curNode.Distance,
+			distance:   node.Distance,
 			searchDone: false,
 		})
 	}
 
-	return newNodesFound, node, nil, nil
+	return newNodesFound
 }
 
-func (dht DHT) intilizeSearchNodeWithSelfForSet(key []byte) ([]searchNode, error) {
+func (dht DHT) addNodesToPeerstore(nodes []searchNode) error {
+	for _, node := range nodes {
+		err := dht.peerstore.AddPeer(node.peer)
+		if err != nil && !errors.Is(err, peer.ErrNoSpaceToStorePeer) {
+			return fmt.Errorf(
+				"adding peer (%s, %s) to peerstore: %w", node.peer.ID(), node.peer.PublicAddr(), err,
+			)
+		}
+	}
+
+	return nil
+}
+
+type searchNode struct {
+	peer       peer.Peer
+	distance   *big.Int
+	searchDone bool
+}
+
+type searchNodes struct {
+	mutext *sync.Mutex
+	nodes  []searchNode
+}
+
+func (n *searchNodes) addSearchNode(newNode searchNode) {
+	n.mutext.Lock()
+	defer n.mutext.Unlock()
+
+	if !n.peerAllreadyAdded(newNode.peer) {
+		n.nodes = append(n.nodes, newNode)
+	}
+}
+
+func (n *searchNodes) addSearchNodeIfCloser(newNodesFound []searchNode) int {
+	n.mutext.Lock()
+	defer n.mutext.Unlock()
+
+	numNewNodesAdded := 0
+	for _, newNode := range newNodesFound {
+		for i := 0; i < len(n.nodes); i++ {
+			if n.nodes[i].peer == nil {
+				n.nodes[i] = newNode
+				numNewNodesAdded++
+				break
+			}
+
+			if bytes.Equal(n.nodes[i].peer.ID(), newNode.peer.ID()) {
+				break
+			}
+
+			if newNode.distance.Cmp(n.nodes[i].distance) < 0 {
+				n.nodes[i] = newNode
+				numNewNodesAdded++
+				break
+			}
+		}
+	}
+
+	return numNewNodesAdded
+}
+
+func (n *searchNodes) getClosestNode() (*searchNode, error) {
+	n.mutext.Lock()
+	defer n.mutext.Unlock()
+
+	var closest *searchNode
+	for i := 0; i < len(n.nodes); i++ {
+		if n.nodes[i].peer == nil {
+			continue
+		}
+		if n.nodes[i].searchDone {
+			continue
+		}
+
+		if closest == nil {
+			closest = &n.nodes[i]
+			continue
+		}
+		if closest.distance.Cmp(n.nodes[i].distance) < 0 {
+			closest = &n.nodes[i]
+		}
+	}
+
+	if closest == nil {
+		return nil, storage.ErrNotFound
+	}
+
+	return closest, nil
+}
+
+func (n *searchNodes) peerAllreadyAdded(p peer.Peer) bool {
+	for _, node := range n.nodes {
+		if node.peer == nil {
+			return false
+		}
+
+		if bytes.Equal(node.peer.ID(), p.ID()) {
+			return true
+		}
+	}
+	return false
+}
+
+func (dht DHT) intilizeSearchNodeWithSelfForSet(key []byte) (*searchNodes, error) {
 	selfDistance, err := dht.peerstore.Distance(dht.node.ID(), key)
 	if err != nil {
 		return nil, err
@@ -275,71 +422,19 @@ func (dht DHT) intilizeSearchNodeWithSelfForSet(key []byte) ([]searchNode, error
 		distance: selfDistance,
 	}
 
-	return res, nil
+	return &searchNodes{mutext: &sync.Mutex{}, nodes: res}, nil
 }
 
-func (dht DHT) intilizeSearchNodeWithSelfForGet(key []byte) ([]searchNode, error) {
+func (dht DHT) intilizeSearchNodeWithSelfForGet(key []byte) (*searchNodes, error) {
 	selfDistance, err := dht.peerstore.Distance(dht.node.ID(), key)
 	if err != nil {
 		return nil, err
 	}
 
-	return []searchNode{{
+	return &searchNodes{mutext: &sync.Mutex{}, nodes: []searchNode{{
 		peer:     peer.New(dht.node.ID(), dht.node.Transport().ListenAddr()),
 		distance: selfDistance,
-	}}, nil
-}
-
-type searchNode struct {
-	peer       peer.Peer
-	distance   *big.Int
-	searchDone bool
-}
-
-func addSearchNode(nodes []searchNode, n searchNode) []searchNode {
-	if peerAllreadyAdded(nodes, n.peer) {
-		return nodes
-	}
-	return append(nodes, n)
-}
-
-func closestNode(nodes []searchNode) (*searchNode, error) {
-	var closest *searchNode
-	for i := 0; i < len(nodes); i++ {
-		if nodes[i].peer == nil {
-			continue
-		}
-		if nodes[i].searchDone {
-			continue
-		}
-
-		if closest == nil {
-			closest = &nodes[i]
-			continue
-		}
-		if closest.distance.Cmp(nodes[i].distance) < 0 {
-			closest = &nodes[i]
-		}
-	}
-
-	if closest == nil {
-		return nil, storage.ErrNotFound
-	}
-
-	return closest, nil
-}
-
-func peerAllreadyAdded(nodes []searchNode, p peer.Peer) bool {
-	for _, node := range nodes {
-		if node.peer == nil {
-			return false
-		}
-
-		if bytes.Equal(node.peer.ID(), p.ID()) {
-			return true
-		}
-	}
-	return false
+	}}}, nil
 }
 
 func isExpectedKDMError(err error) bool {

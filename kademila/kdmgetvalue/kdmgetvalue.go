@@ -55,75 +55,83 @@ func Register(node node.Node, peerstore peer.Store, storer storage.Hashtable) Se
 
 func (s Service) Run() {
 	s.node.RegisterProtocol("/kdmgetvalue", func(c transport.Conn) error {
-		// Decode request.
 		var req Request
-		decoder := gob.NewDecoder(c)
-		err := decoder.Decode(&req)
+		err := gob.NewDecoder(c).Decode(&req)
 		if err != nil {
-			sendResponse(c, Response{Err: ErrInvalidRequest.Error()})
-			return err
-		}
-
-		// Validate request.
-		if !s.isValidRequest(req) {
 			sendResponse(c, Response{Err: ErrInvalidRequest.Error()})
 			return nil
 		}
 
-		// Try to add peer to peerstore.
+		res, err := s.HandleRequest(req)
+		if err != nil {
+			sendResponse(c, Response{Err: err.Error()})
+			if !errors.Is(err, ErrInvalidRequest) {
+				return err
+			}
+			return nil
+		}
+
 		if err := s.tryAddPeerToStore(c); err != nil {
-			sendResponse(c, Response{Err: ErrInvalidRequest.Error()})
-			return err
+			sendResponse(c, Response{Err: err.Error()})
+			return nil
 		}
 
-		// Check if we have value localy.
-		value, err := s.storer.Get(req.Key)
-		if err == nil {
-			return sendResponse(c, Response{
-				Value: value,
-				NodeContacted: Node{
-					ID:         s.node.ID(),
-					PublicAddr: s.node.Transport().ListenAddr(),
-				},
-			})
-		}
-		if !errors.Is(err, storage.ErrNotFound) {
-			sendResponse(c, Response{Err: ErrInternalServerError.Error()})
-			return err
-		}
+		return sendResponse(c, res)
+	})
+}
 
-		// Get the closest nodes we know.
-		peers, dis, err := s.peerstore.GetClosestPeers(req.Key, req.K)
-		if err != nil {
-			sendResponse(c, Response{Err: ErrInternalServerError.Error()})
-			return err
-		}
-		if len(peers) != len(dis) {
-			sendResponse(c, Response{Err: ErrInternalServerError.Error()})
-			return errors.New("number of distences and peers returned from peerstore are diffrent")
-		}
+func (s Service) HandleRequest(req Request) (Response, error) {
+	// Validate request.
+	if !s.isValidRequest(req) {
+		return Response{}, ErrInvalidRequest
+	}
 
-		// Convert data and calculate the distence from this node to the key.
-		thisNodeDistance, err := s.peerstore.Distance(s.node.ID(), req.Key)
-		if err != nil {
-			sendResponse(c, Response{Err: ErrInternalServerError.Error()})
-			return err
-		}
-
-		nodes := make([]Node, 0, len(peers))
-		for i := 0; i < len(peers); i++ {
-			nodes = append(nodes, Node{peers[i].ID(), dis[i], peers[i].PublicAddr()})
-		}
-
-		return sendResponse(c, Response{
+	// Check if we have value localy.
+	value, err := s.storer.Get(req.Key)
+	if err == nil {
+		return Response{
+			Value: value,
 			NodeContacted: Node{
 				ID:         s.node.ID(),
-				Distance:   thisNodeDistance,
 				PublicAddr: s.node.Transport().ListenAddr(),
 			},
-			ClosestNodes: nodes,
-		})
-	})
+		}, nil
+	}
+	if !errors.Is(err, storage.ErrNotFound) {
+		return Response{}, fmt.Errorf("%w: %w", ErrInternalServerError, err)
+	}
+
+	// Get the closest nodes we know.
+	peers, dis, err := s.peerstore.GetClosestPeers(req.Key, req.K)
+	if err != nil {
+		return Response{}, fmt.Errorf("%w: %w", ErrInternalServerError, err)
+	}
+	if len(peers) != len(dis) {
+		return Response{}, fmt.Errorf(
+			"%w: number of distences and peers returned from peerstore are diffrent",
+			ErrInternalServerError,
+		)
+	}
+
+	// Convert data and calculate the distence from this node to the key.
+	thisNodeDistance, err := s.peerstore.Distance(s.node.ID(), req.Key)
+	if err != nil {
+		return Response{}, fmt.Errorf("%w: %w", ErrInternalServerError, err)
+	}
+
+	nodes := make([]Node, 0, len(peers))
+	for i := 0; i < len(peers); i++ {
+		nodes = append(nodes, Node{peers[i].ID(), dis[i], peers[i].PublicAddr()})
+	}
+
+	return Response{
+		NodeContacted: Node{
+			ID:         s.node.ID(),
+			Distance:   thisNodeDistance,
+			PublicAddr: s.node.Transport().ListenAddr(),
+		},
+		ClosestNodes: nodes,
+	}, nil
 }
 
 func (s Service) Do(ctx context.Context, req Request, p peer.Peer) (Response, error) {
