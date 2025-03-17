@@ -30,9 +30,10 @@ type DHT struct {
 	NumPeerReturnedSet int
 	NumPeerReturnedGet int
 	NumWorkersGet      int
+	NumWorkersSet      int
 
 	// The maximum number of times a value is replacted accros the newtork
-	// when setting a value.
+	// when setting a value. Defualts to 5.
 	MaxNumStores int
 
 	// The minimum amount of nodes that need to store a value for a set
@@ -62,54 +63,21 @@ func New(node node.Node, opts ...Option) DHT {
 		NumPeerReturnedSet: 10,
 		NumPeerReturnedGet: 10,
 		NumWorkersGet:      3,
+		NumWorkersSet:      3,
 		MaxNumStores:       5,
 		MinNumStores:       2,
 	}
 }
 
 func (dht DHT) SetValue(ctx context.Context, key []byte, value []byte) error {
-	nodes, err := dht.intilizeSearchNodeWithSelfForSet(key)
+	resultNodes, errorCollection, err := dht.findStorersInNetwork(ctx, key)
 	if err != nil {
 		return err
 	}
 
-	errorCollection := make([]errorPeer, 0)
-	for {
-		newNodesFound, nodeContacted, valueStored, err := dht.searchOnePeer(ctx, nodes, key, dht.NumPeerReturnedSet)
-		if err != nil {
-			// There are no search nodes left that are not searched.
-			if errors.Is(err, storage.ErrNotFound) {
-				break
-			}
-
-			if isExpectedKDMError(err) {
-				errorCollection = append(errorCollection, errorPeer{err, nodeContacted.peer})
-				continue
-			}
-
-			return err
-		}
-		if valueStored != nil {
-			return ErrAllreadySet
-		}
-
-		numNewNodesAdded := nodes.addSearchNodeIfCloser(newNodesFound)
-		if numNewNodesAdded == 0 {
-			break
-		}
-	}
-
-	resultNodes := make([]searchNode, 0, len(nodes.nodes))
-	for _, node := range nodes.nodes {
-		if node.peer == nil {
-			break
-		}
-		resultNodes = append(resultNodes, node)
-	}
-
 	if len(resultNodes) < dht.MinNumStores {
 		return fmt.Errorf(
-			"%w: unable to find minum amount of storers (%v): [%w]",
+			"%w: unable to find minum amount of storers (%v) in network: [%w]",
 			ErrSettingFailed,
 			dht.MinNumStores,
 			combineErrors(errorCollection),
@@ -123,21 +91,11 @@ func (dht DHT) SetValue(ctx context.Context, key []byte, value []byte) error {
 		}
 	}
 
-	failedStored := make([]errorPeer, 0)
-	for _, node := range resultNodes {
-		err := dht.storeValueService.Do(ctx, kdmstore.Request{Key: key, Value: value}, node.peer)
-		if err != nil {
-			if !(errors.Is(err, kdmstore.ErrInvalidResponse) || errors.Is(err, kdmstore.ErrUnableToReachPeer)) {
-				return err
-			}
-
-			failedStored = append(failedStored, errorPeer{err: err})
-		}
-	}
+	failedStored := dht.setValueInPeers(ctx, resultNodes, key, value)
 
 	if len(resultNodes)-len(failedStored) < dht.MinNumStores {
 		return fmt.Errorf(
-			"%w: number of succseful duplications of value accros the network (%v) is less then the minium set (%v). %w",
+			"%w: number of succseful duplications of value accros the network (%v), is less then the minium set (%v). %w",
 			ErrSettingFailed,
 			len(resultNodes)-len(failedStored),
 			dht.MinNumStores,
@@ -146,6 +104,112 @@ func (dht DHT) SetValue(ctx context.Context, key []byte, value []byte) error {
 	}
 
 	return nil
+}
+
+func (dht DHT) findStorersInNetwork(ctx context.Context, key []byte) ([]searchNode, []errorPeer, error) {
+	errorCollection := make([]errorPeer, 0)
+	nodes, err := dht.intilizeSearchNodeWithSelfForSet(key)
+	if err != nil {
+		return nil, errorCollection, err
+	}
+
+	var termenatingErr error
+	var isDone bool
+	termenatingMux := new(sync.Mutex)
+
+	wg := new(sync.WaitGroup)
+	wg.Add(dht.NumWorkersSet)
+
+	for i := 0; i < dht.NumWorkersSet; i++ {
+		go func() {
+			for {
+				termenatingMux.Lock()
+				if termenatingErr != nil || isDone {
+					wg.Done()
+					termenatingMux.Unlock()
+					return
+				}
+				termenatingMux.Unlock()
+
+				newNodesFound, nodeContacted, valueStored, err := dht.searchOnePeer(ctx, nodes, key, dht.NumPeerReturnedSet)
+				if err != nil {
+					// There are no search nodes left that are not searched.
+					if errors.Is(err, storage.ErrNotFound) {
+						wg.Done()
+						return
+					}
+
+					if isExpectedKDMError(err) {
+						errorCollection = append(errorCollection, errorPeer{err, nodeContacted.peer})
+						continue
+					}
+				}
+				if valueStored != nil {
+					err = ErrAllreadySet
+				}
+				if err != nil {
+					termenatingMux.Lock()
+					defer termenatingMux.Unlock()
+					termenatingErr = err
+					wg.Done()
+					return
+				}
+
+				numNewNodesAdded := nodes.addSearchNodeIfCloser(newNodesFound)
+				if numNewNodesAdded == 0 {
+					termenatingMux.Lock()
+					isDone = true
+					termenatingMux.Unlock()
+					wg.Done()
+					return
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	resultNodes := make([]searchNode, 0, len(nodes.nodes))
+	for _, node := range nodes.nodes {
+		if node.peer == nil {
+			break
+		}
+		resultNodes = append(resultNodes, node)
+	}
+
+	return resultNodes, errorCollection, nil
+}
+
+func (dht DHT) setValueInPeers(ctx context.Context, resultNodes []searchNode, key []byte, value []byte) []errorPeer {
+	searchNodeGiver := make(chan searchNode)
+	failedStored := make([]errorPeer, 0, len(resultNodes))
+	wg := new(sync.WaitGroup)
+	wg.Add(dht.NumWorkersSet)
+
+	for i := 0; i < dht.NumWorkersSet; i++ {
+		go func() {
+			for {
+				node, ok := <-searchNodeGiver
+				if !ok {
+					wg.Done()
+					return
+				}
+
+				err := dht.storeValueService.Do(ctx, kdmstore.Request{Key: key, Value: value}, node.peer)
+				if err != nil {
+					failedStored = append(failedStored, errorPeer{err: err})
+				}
+			}
+		}()
+	}
+
+	for _, node := range resultNodes {
+		searchNodeGiver <- node
+	}
+	close(searchNodeGiver)
+	wg.Wait()
+
+	return failedStored
 }
 
 func (dht DHT) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
@@ -159,13 +223,14 @@ func (dht DHT) GetValue(ctx context.Context, key []byte) (value []byte, err erro
 		return finalValue, err
 	}
 
-	errorCollection := make([]errorPeer, 0)
+	col := make([]errorPeer, 0)
+	errorCollection := &col
 
 	type finalResult struct {
 		res []byte
 		err error
 	}
-	finalResultMutex := new(sync.Mutex)
+	mutex := new(sync.Mutex)
 	var res *finalResult
 
 	wg := new(sync.WaitGroup)
@@ -191,13 +256,16 @@ func (dht DHT) GetValue(ctx context.Context, key []byte) (value []byte, err erro
 						return
 					}
 					if isExpectedKDMError(err) {
-						errorCollection = append(errorCollection, errorPeer{err, nodeContacted.peer})
+						mutex.Lock()
+						coll := append(*errorCollection, errorPeer{err, nodeContacted.peer})
+						errorCollection = &coll
+						mutex.Unlock()
 						continue
 					}
 				}
 				if valueStored != nil || err != nil {
-					finalResultMutex.Lock()
-					defer finalResultMutex.Unlock()
+					mutex.Lock()
+					defer mutex.Unlock()
 					if res != nil {
 						wg.Done()
 						return
@@ -222,7 +290,7 @@ func (dht DHT) GetValue(ctx context.Context, key []byte) (value []byte, err erro
 		return nil, fmt.Errorf(
 			"%w: possible errors connacting peers: [%w]",
 			storage.ErrNotFound,
-			combineErrors(errorCollection),
+			combineErrors(*errorCollection),
 		)
 	}
 
