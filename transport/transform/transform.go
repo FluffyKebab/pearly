@@ -22,6 +22,8 @@ type Conn struct {
 	Transform   TransformFunc
 	Detransform TransformFunc
 
+	maxPacketSize  int
+	batchSize      int
 	unread         []byte
 	unreadReadPos  int
 	unreadWritePos int
@@ -36,17 +38,20 @@ var (
 	_ io.ByteReader      = &Conn{}
 )
 
-func NewConn(
-	underlayingConn transport.Conn,
-	transform TransformFunc,
-	detransform TransformFunc,
-) *Conn {
+func NewConn(underlayingConn transport.Conn, opts ...Option) *Conn {
+	option := getDefualtOptions()
+	for _, opt := range opts {
+		opt(option)
+	}
+
 	return &Conn{
 		reader:         underlayingConn,
 		writer:         underlayingConn,
 		closer:         underlayingConn,
-		Transform:      transform,
-		Detransform:    detransform,
+		Transform:      option.transformer,
+		Detransform:    option.detransformer,
+		maxPacketSize:  option.maxPacketSize,
+		batchSize:      option.batchSize,
 		unread:         make([]byte, _maxPacketSize/2),
 		packetOwerflow: make([]byte, 0),
 	}
@@ -98,7 +103,7 @@ func (c *Conn) readAtleastOnePacketIntoUnread() (int, error) {
 	}
 
 	curPacketSize := int(binary.LittleEndian.Uint32(c.unread[:_lenPacketSize]))
-	if curPacketSize > _maxPacketSize {
+	if curPacketSize > c.maxPacketSize {
 		return 0, errors.New("packet size is to large")
 	}
 	if curPacketSize+_lenPacketSize > len(c.unread) {
@@ -163,27 +168,35 @@ func (c *Conn) writeUread(p []byte) {
 }
 
 func (c *Conn) Write(p []byte) (n int, err error) {
-	transformedData := p
-	if c.Transform != nil {
-		transformedData, err = c.Transform(p)
-		if err != nil {
-			return 0, err
-		}
+	batches := [][]byte{p}
+	if c.batchSize > 0 {
+		batches = bactchData(p, c.maxPacketSize, c.batchSize)
 	}
 
-	// If the size is to large we split the packet in two.
-	if len(transformedData) > _maxPacketSize {
-		n1, err := c.Write(p[:len(p)/2])
-		if err != nil {
-			return 0, err
+	for i := 0; i < len(batches); i++ {
+		transformedData := batches[i]
+		if c.Transform != nil {
+			transformedData, err = c.Transform(batches[i])
+			if err != nil {
+				return 0, err
+			}
 		}
-		n2, err := c.Write(p[len(p)/2:])
-		return n1 + n2, err
+
+		// If the size is to large we split the packet in two.
+		if len(transformedData) > c.maxPacketSize {
+			n1, err := c.Write(batches[i][:len(p)/2])
+			if err != nil {
+				return 0, err
+			}
+			n2, err := c.Write(batches[i][len(p)/2:])
+			return n1 + n2, err
+		}
+
+		_, err = c.writer.Write(
+			prependInt(transformedData, len(transformedData)),
+		)
 	}
 
-	_, err = c.writer.Write(
-		prependInt(transformedData, len(transformedData)),
-	)
 	return len(p), err
 }
 
@@ -206,4 +219,17 @@ func prependInt(p []byte, n int) []byte {
 
 func NOPTransform(d []byte) ([]byte, error) {
 	return d, nil
+}
+
+func bactchData(data []byte, trheshould int, packetSize int) [][]byte {
+	if len(data) < trheshould {
+		return [][]byte{data}
+	}
+
+	res := make([][]byte, 0, len(data)/packetSize)
+	for i := 0; i < len(data); i += packetSize {
+		res = append(res, data[i:min(len(data), i+packetSize)])
+	}
+
+	return res
 }

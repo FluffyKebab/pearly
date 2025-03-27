@@ -60,8 +60,16 @@ func TestTransformerSingleSmallMessage(t *testing.T) {
 	}
 	conn2To1Underlaying := &mockedConn{}
 
-	conn1To2 := NewConn(conn1To2Underlaying, testTransformerFlip, testTransformerFlip)
-	conn2To1 := NewConn(conn2To1Underlaying, testTransformerFlip, testTransformerFlip)
+	conn1To2 := NewConn(
+		conn1To2Underlaying,
+		WithTransformer(testTransformerFlip),
+		WithDetransformer(testTransformerFlip),
+	)
+	conn2To1 := NewConn(
+		conn2To1Underlaying,
+		WithTransformer(testTransformerFlip),
+		WithDetransformer(testTransformerFlip),
+	)
 
 	msgSent := make([]byte, 10)
 	_, err := rand.Read(msgSent)
@@ -92,8 +100,16 @@ func TestTransformerMultipleSmallMessages(t *testing.T) {
 	}
 	conn2To1Underlaying := &mockedConn{}
 
-	conn1To2 := NewConn(conn1To2Underlaying, testTransformerFlip, testTransformerFlip)
-	conn2To1 := NewConn(conn2To1Underlaying, testTransformerFlip, testTransformerFlip)
+	conn1To2 := NewConn(
+		conn1To2Underlaying,
+		WithTransformer(testTransformerFlip),
+		WithDetransformer(testTransformerFlip),
+	)
+	conn2To1 := NewConn(
+		conn2To1Underlaying,
+		WithTransformer(testTransformerFlip),
+		WithDetransformer(testTransformerFlip),
+	)
 
 	msgs := make([][]byte, 10)
 	for i := 0; i < len(msgs); i++ {
@@ -128,8 +144,16 @@ func TestTransformerSingleLargeMessage(t *testing.T) {
 	}
 	conn2To1Underlaying := &mockedConn{}
 
-	conn1To2 := NewConn(conn1To2Underlaying, testTransformerNone, testTransformerNone)
-	conn2To1 := NewConn(conn2To1Underlaying, testTransformerNone, testTransformerNone)
+	conn1To2 := NewConn(
+		conn1To2Underlaying,
+		WithTransformer(testTransformerNone),
+		WithDetransformer(testTransformerNone),
+	)
+	conn2To1 := NewConn(
+		conn2To1Underlaying,
+		WithTransformer(testTransformerNone),
+		WithDetransformer(testTransformerNone),
+	)
 
 	msgSent := make([]byte, 19*1048)
 	_, err := rand.Read(msgSent)
