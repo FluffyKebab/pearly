@@ -112,6 +112,10 @@ func (dht DHT) findStorersInNetwork(ctx context.Context, key []byte) ([]searchNo
 	if err != nil {
 		return nil, errorCollection, err
 	}
+	err = dht.doSetValueSelfSearch(key, nodes)
+	if err != nil {
+		return nil, errorCollection, err
+	}
 
 	var termenatingErr error
 	var isDone bool
@@ -178,6 +182,22 @@ func (dht DHT) findStorersInNetwork(ctx context.Context, key []byte) ([]searchNo
 	}
 
 	return resultNodes, errorCollection, nil
+}
+
+func (dht DHT) doSetValueSelfSearch(key []byte, nodes *searchNodes) error {
+	response, err := dht.getValueService.HandleRequest(kdmgetvalue.Request{
+		Key: key,
+		K:   dht.NumPeerReturnedGet,
+	})
+	if err != nil {
+		return err
+	}
+	if response.Value != nil {
+		return ErrAllreadySet
+	}
+
+	nodes.addSearchNodeIfCloser(dht.convertToSearchNodes(response.ClosestNodes))
+	return nil
 }
 
 func (dht DHT) setValueInPeers(ctx context.Context, resultNodes []searchNode, key []byte, value []byte) []errorPeer {

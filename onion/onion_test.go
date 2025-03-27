@@ -2,6 +2,7 @@ package onion
 
 import (
 	"context"
+	"crypto/rand"
 	"testing"
 
 	"github.com/FluffyKebab/pearly/node/basic"
@@ -21,7 +22,11 @@ func TestOnion(t *testing.T) {
 
 		n := basic.New(tcp.New(curPort), nil)
 		RegisterService(n).Run()
-		n.Run(context.Background())
+		errChan, _ := n.Run(context.Background())
+		go func() {
+			err := <-errChan
+			require.NoError(t, err)
+		}()
 
 		peers = append(peers, peer.New(nil, "127.0.0.1:"+curPort))
 	}
@@ -33,16 +38,25 @@ func TestOnion(t *testing.T) {
 	finalNode.Run(context.Background())
 	peers = append(peers, peer.New(nil, "127.0.0.1:"+curPort))
 
-	msgToSend := "halo this is the message sent very secretly to you"
+	msgSize := 1024 * 9
+	msgToSend := make([]byte, msgSize)
+	rand.Read(msgToSend)
 
 	finalNode.SetConnHandler(func(c transport.Conn) error {
 		t.Helper()
-		buf := make([]byte, 1024)
-		n, err := c.Read(buf)
-		require.NoError(t, err)
-		require.Equal(t, msgToSend, string(buf[:n]))
 
-		_, err = c.Write([]byte(msgToSend))
+		buf := make([]byte, msgSize)
+		numRead := 0
+		for numRead < msgSize {
+			n, err := c.Read(buf[numRead:])
+			require.NoError(t, err)
+			numRead += n
+		}
+		require.Equal(t, msgToSend, buf[:numRead])
+
+		msgSent := make([]byte, msgSize)
+		copy(msgSent, msgToSend)
+		_, err = c.Write([]byte(msgSent))
 		require.NoError(t, err)
 		return nil
 	})
@@ -54,11 +68,13 @@ func TestOnion(t *testing.T) {
 	conn, _, err := client.EstablishCericut(context.Background(), peers)
 	require.NoError(t, err)
 
-	_, err = conn.Write([]byte(msgToSend))
+	msgSent := make([]byte, msgSize)
+	copy(msgSent, msgToSend)
+	_, err = conn.Write([]byte(msgSent))
 	require.NoError(t, err)
 
-	buf := make([]byte, 1024)
+	buf := make([]byte, msgSize)
 	n, err := conn.Read(buf)
 	require.NoError(t, err)
-	require.Equal(t, msgToSend, string(buf[:n]))
+	require.Equal(t, msgToSend, buf[:n])
 }

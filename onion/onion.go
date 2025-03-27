@@ -20,8 +20,10 @@ import (
 var ErrInvalidRequest = errors.New("invalid request")
 
 const (
-	OnionProtoID     = "/onion"
-	_sucssesResponse = "sucsess"
+	OnionProtoID       = "/onion"
+	_sucssesResponse   = "sucsess"
+	_defualtPacketSize = 1024 * 10
+	_defualtBatchSize  = 1024 * 6
 )
 
 type Request struct {
@@ -63,7 +65,7 @@ func (s *Service) Run() {
 }
 
 func (s *Service) handler(c transport.Conn) error {
-	previousConn := transform.NewConn(c, nil, nil)
+	previousConn := transform.NewConn(c)
 	if s.PublicKeyDecrypter != nil {
 		previousConn.Detransform = s.PublicKeyDecrypter.Decrypt
 	}
@@ -87,8 +89,13 @@ func (s *Service) handler(c transport.Conn) error {
 		return err
 	}
 
-	upgradeToSymetriclyEncrypted(previousConn, req.SecretKey)
-	s.handleRelay(previousConn, nextConn, req.MaxRandomWaitTime)
+	encryptedStream, err := crypto.NewEncryptionStream(req.SecretKey, nextConn)
+	if err != nil {
+		return err
+	}
+	nextConn = transport.NewConn(encryptedStream, encryptedStream, nextConn)
+
+	s.handleRelay(c, nextConn, req.MaxRandomWaitTime)
 	return nil
 }
 
@@ -136,58 +143,33 @@ func sendSuccses(w io.Writer) error {
 	return err
 }
 
-func upgradeToSymetriclyEncrypted(c *transform.Conn, secretKey []byte) error {
-	encryption, err := crypto.NewSymetricEncryption(secretKey)
-	if err != nil {
-		return err
-	}
-
-	c.Transform = func(b []byte) ([]byte, error) {
-		res, err := encryption.Encrypt(b)
-		return res, err
-	}
-	c.Detransform = func(b []byte) ([]byte, error) {
-		res, err := encryption.Decrypt(b)
-		return res, err
-	}
-	return nil
-}
-
 func copyWithRandomWait(dst io.Writer, src io.Reader, wait time.Duration) error {
-	size := 12 * 1024
+	size := _defualtPacketSize
 	buf := make([]byte, size)
-	var err error
 
 	for {
 		if int64(wait) > 0 {
 			time.Sleep(time.Duration((rand.Int64N(int64(wait)))))
 		}
 
-		nr, er := src.Read(buf)
-		if nr > 0 {
-			nw, ew := dst.Write(buf[0:nr])
-			if nw < 0 || nr < nw {
-				nw = 0
-				if ew == nil {
-					ew = fmt.Errorf("invalid write")
-				}
+		numRead, err := src.Read(buf)
+		fmt.Println("reaay read", numRead)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
 			}
-
-			if ew != nil {
-				err = ew
-				break
-			}
-			if nr != nw {
-				err = fmt.Errorf("invalid write")
-				break
-			}
+			return err
 		}
-		if er != nil {
-			if er != io.EOF {
-				err = er
-			}
-			break
+		if numRead <= 0 {
+			continue
+		}
+
+		numWritten, err := dst.Write(buf[0:numRead])
+		if err != nil {
+			return err
+		}
+		if numWritten != numRead {
+			return fmt.Errorf("invalid write")
 		}
 	}
-	return err
 }

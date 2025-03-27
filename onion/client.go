@@ -32,25 +32,24 @@ func (c Client) EstablishCericut(ctx context.Context, peers []peer.Peer) (transp
 		return nil, 0, errors.New("missing peers to create circut")
 	}
 
-	lastConn, err := c.transport.Dial(ctx, peers[0])
+	conn, err := c.transport.Dial(ctx, peers[0])
 	if err != nil {
 		return nil, 0, fmt.Errorf("dialing peer 1: %w", err)
 	}
 
 	for i := 0; i < len(peers)-1; i++ {
-		err := c.muxer.SelectProtocol(ctx, OnionProtoID, lastConn)
+		err := c.muxer.SelectProtocol(ctx, OnionProtoID, conn)
 		if err != nil {
 			return nil, i, err
 		}
 
-		curConn := transform.NewConn(lastConn, transform.NOPTransform, transform.NOPTransform)
-
+		transformedConn := transform.NewConn(conn)
 		if c.EncryptRequest {
 			return nil, 0, errors.New("not implemented")
 		}
 
 		curSecretKey := crypto.NewSymetricEncryptionSecretKey()
-		err = sendRequest(curConn, Request{
+		err = sendRequest(transformedConn, Request{
 			SecretKey:         curSecretKey,
 			NextNodeAddr:      peers[i+1].PublicAddr(),
 			MaxRandomWaitTime: 0,
@@ -59,20 +58,19 @@ func (c Client) EstablishCericut(ctx context.Context, peers []peer.Peer) (transp
 			return nil, i, err
 		}
 
-		err = readResponse(curConn)
+		err = readResponse(transformedConn)
 		if err != nil {
 			return nil, i, err
 		}
 
-		err = upgradeClientConnection(curConn, curSecretKey, i)
+		upgraded, err := crypto.NewEncryptionStream(curSecretKey, conn)
 		if err != nil {
 			return nil, i, err
 		}
-
-		lastConn = curConn
+		conn = transport.NewConn(upgraded, upgraded, conn)
 	}
 
-	return lastConn, 0, err
+	return conn, 0, err
 }
 
 func sendRequest(c *transform.Conn, req Request) error {
@@ -95,34 +93,5 @@ func readResponse(c *transform.Conn) error {
 	if !(string(buf[:n]) == _sucssesResponse) {
 		return errors.New(string(buf[:n]))
 	}
-	return nil
-}
-
-func upgradeClientConnection(conn *transform.Conn, secretKey []byte, i int) error {
-	curEncrypter, err := crypto.NewSymetricEncryption(secretKey)
-	if err != nil {
-		return err
-	}
-
-	lastTransform := conn.Transform
-	conn.Transform = func(b []byte) ([]byte, error) {
-		b, err := curEncrypter.Encrypt(b)
-		if err != nil {
-			return nil, fmt.Errorf("encrypting for peer %v: %w", i+1, err)
-		}
-
-		return lastTransform(b)
-	}
-
-	lastDetransform := conn.Detransform
-	conn.Detransform = func(b []byte) ([]byte, error) {
-		b, err := curEncrypter.Decrypt(b)
-		if err != nil {
-			return nil, fmt.Errorf("encrypting for peer %v: %w", i+1, err)
-		}
-
-		return lastDetransform(b)
-	}
-
 	return nil
 }

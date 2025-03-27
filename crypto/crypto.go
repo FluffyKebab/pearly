@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"errors"
+	"io"
 )
 
 type Encrypter interface {
@@ -64,9 +65,23 @@ func NewSymetricEncryptionSecretKey() []byte {
 	return key
 }
 
-type asymetricEncryptor struct {
+type stream struct {
+	io.Reader
+	io.Writer
 }
 
-func (e asymetricEncryptor) Encrypt(plaintext []byte) ([]byte, error) {
-	return nil, nil
+func NewEncryptionStream(secretKey []byte, underlaying io.ReadWriter) (*stream, error) {
+	block, err := aes.NewCipher(secretKey)
+	if err != nil {
+		return nil, err
+	}
+
+	var iv [aes.BlockSize]byte
+	rs := cipher.NewCTR(block, iv[:])
+	ws := cipher.NewCTR(block, iv[:])
+	return &stream{
+		Reader: cipher.StreamReader{S: rs, R: underlaying},
+		Writer: cipher.StreamWriter{S: ws, W: underlaying},
+	}, nil
+
 }

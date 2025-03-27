@@ -13,6 +13,16 @@ type Conn interface {
 	io.Closer
 }
 
+type conn struct {
+	io.Reader
+	io.Writer
+	io.Closer
+}
+
+func NewConn(r io.Reader, w io.Writer, c io.Closer) Conn {
+	return conn{r, w, c}
+}
+
 type RemoteAddrHaver interface {
 	RemoteAddr() string
 }
