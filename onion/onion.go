@@ -72,7 +72,9 @@ func (s *Service) handler(c transport.Conn) error {
 
 	req, err := s.readRequest(previousConn)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidRequest, err)
+		err = fmt.Errorf("%w: %w", ErrInvalidRequest, err)
+		sendFail(previousConn, err)
+		return err
 	}
 
 	nextConn, err := s.Node.DialPeer(
@@ -80,6 +82,7 @@ func (s *Service) handler(c transport.Conn) error {
 		peer.New(nil, req.NextNodeAddr),
 	)
 	if err != nil {
+		sendFail(previousConn, err)
 		return err
 	}
 
@@ -95,7 +98,7 @@ func (s *Service) handler(c transport.Conn) error {
 	}
 	nextConn = transport.NewConn(encryptedStream, encryptedStream, nextConn)
 
-	s.handleRelay(c, nextConn, req.MaxRandomWaitTime)
+	s.handleRelay(previousConn, nextConn, req.MaxRandomWaitTime)
 	return nil
 }
 
@@ -153,7 +156,6 @@ func copyWithRandomWait(dst io.Writer, src io.Reader, wait time.Duration) error 
 		}
 
 		numRead, err := src.Read(buf)
-		fmt.Println("reaay read", numRead)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil

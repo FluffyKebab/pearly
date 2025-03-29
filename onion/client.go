@@ -40,11 +40,13 @@ func (c Client) EstablishCericut(ctx context.Context, peers []peer.Peer) (transp
 	for i := 0; i < len(peers)-1; i++ {
 		err := c.muxer.SelectProtocol(ctx, OnionProtoID, conn)
 		if err != nil {
+			conn.Close()
 			return nil, i, err
 		}
 
 		transformedConn := transform.NewConn(conn)
 		if c.EncryptRequest {
+			conn.Close()
 			return nil, 0, errors.New("not implemented")
 		}
 
@@ -55,16 +57,19 @@ func (c Client) EstablishCericut(ctx context.Context, peers []peer.Peer) (transp
 			MaxRandomWaitTime: 0,
 		})
 		if err != nil {
+			conn.Close()
 			return nil, i, err
 		}
 
 		err = readResponse(transformedConn)
 		if err != nil {
+			conn.Close()
 			return nil, i, err
 		}
 
-		upgraded, err := crypto.NewEncryptionStream(curSecretKey, conn)
+		upgraded, err := crypto.NewEncryptionStream(curSecretKey, transformedConn)
 		if err != nil {
+			conn.Close()
 			return nil, i, err
 		}
 		conn = transport.NewConn(upgraded, upgraded, conn)

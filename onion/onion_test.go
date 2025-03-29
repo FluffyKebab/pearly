@@ -16,7 +16,7 @@ import (
 
 func TestOnion(t *testing.T) {
 	peers := make([]peer.Peer, 0)
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 10; i++ {
 		curPort, err := testutil.GetAvilablePort()
 		require.NoError(t, err)
 
