@@ -4,6 +4,8 @@ github.com/FluffyKebab/pearly v0.0.0-20250124065626-672750876fe1 h1:yQPjjHq1yVsj
 github.com/FluffyKebab/pearly v0.0.0-20250124065626-672750876fe1/go.mod h1:QWWe8ShjCWwLr3k/F2aWZcNL1/dZAwiHi3mO+sV+Amc=
 github.com/FluffyKebab/pearly v0.0.0-20250127154912-e58c65509f5c h1:b8Ya1pL1frL+6Rs+kbAAzr6Kk08sutUXL9UL4NUpmas=
 github.com/FluffyKebab/pearly v0.0.0-20250127154912-e58c65509f5c/go.mod h1:ea5AYw8seuySt7IcMNnEnKv4YTEqa5hsKnLyFI6xp24=
+github.com/FluffyKebab/pearly v0.0.0-20250429131748-9b90ade38507 h1:6Y7jj95Z0VwOJWCCiwvD5sHRmlUtjRgbCD7C9BJoT9o=
+github.com/FluffyKebab/pearly v0.0.0-20250429131748-9b90ade38507/go.mod h1:aN/V0ajM/TCAH+r+i5nLNJ8Td5K/06GJv7GV0KD7SIQ=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/multiformats/go-multistream v0.6.0 h1:ZaHKbsL404720283o4c/IHQXiS6gb8qAN5EIJ4PN5EA=
