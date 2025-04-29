@@ -9,7 +9,7 @@ type options struct {
 	batchSize     int
 }
 
-func getDefualtOptions() *options {
+func getDefaultOptions() *options {
 	return &options{
 		maxPacketSize: _maxPacketSize,
 	}

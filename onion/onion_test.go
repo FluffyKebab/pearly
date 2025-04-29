@@ -17,7 +17,7 @@ import (
 func TestOnion(t *testing.T) {
 	peers := make([]peer.Peer, 0)
 	for i := 0; i < 10; i++ {
-		curPort, err := testutil.GetAvilablePort()
+		curPort, err := testutil.GetAvailablePort()
 		require.NoError(t, err)
 
 		n := basic.New(tcp.New(curPort), nil)
@@ -31,7 +31,7 @@ func TestOnion(t *testing.T) {
 		peers = append(peers, peer.New(nil, "127.0.0.1:"+curPort))
 	}
 
-	curPort, err := testutil.GetAvilablePort()
+	curPort, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
 	finalNode := basic.New(tcp.New(curPort), nil)
@@ -61,11 +61,11 @@ func TestOnion(t *testing.T) {
 		return nil
 	})
 
-	clientPort, err := testutil.GetAvilablePort()
+	clientPort, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 	client := NewClient(multistream.NewMuxer(), tcp.New(clientPort))
 
-	conn, _, err := client.EstablishCericut(context.Background(), peers)
+	conn, _, err := client.EstablishCircuit(context.Background(), peers)
 	require.NoError(t, err)
 
 	msgSent := make([]byte, msgSize)

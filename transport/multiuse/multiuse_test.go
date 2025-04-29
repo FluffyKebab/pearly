@@ -62,7 +62,7 @@ func TestMultiuseWithEncryptedTCP(t *testing.T) {
 
 func createTransport(t *testing.T) *Transport {
 	t.Helper()
-	port, err := testutil.GetAvilablePort()
+	port, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
 	e, err := encrypted.NewTransport(tcp.New(port))

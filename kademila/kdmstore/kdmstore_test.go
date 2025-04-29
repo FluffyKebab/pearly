@@ -40,7 +40,7 @@ func TestKDMStoreNoEncryption(t *testing.T) {
 
 func createServiceNoEncryption(t *testing.T, ctx context.Context) (Service, peer.Peer, <-chan error) {
 	t.Helper()
-	port, err := testutil.GetAvilablePort()
+	port, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
 	transport := tcp.New(port)

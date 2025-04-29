@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-func GetAvilablePort() (string, error) {
+func GetAvailablePort() (string, error) {
 	a, err := net.ResolveTCPAddr("tcp", "localhost:0")
 	if err != nil {
 		return "", err

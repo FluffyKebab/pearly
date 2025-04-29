@@ -21,9 +21,9 @@ var ErrInvalidRequest = errors.New("invalid request")
 
 const (
 	OnionProtoID       = "/onion"
-	_sucssesResponse   = "sucsess"
-	_defualtPacketSize = 1024 * 10
-	_defualtBatchSize  = 1024 * 6
+	_successResponse   = "success"
+	_defaultPacketSize = 1024 * 10
+	_defaultBatchSize  = 1024 * 6
 )
 
 type Request struct {
@@ -35,7 +35,7 @@ type Request struct {
 	NextNodeAddr string
 
 	// MaxRandomWaitTime is the maximum time this noe will wait to relay from
-	// the next node in the circut to the previous one and vice versa.
+	// the next node in the circuit to the previous one and vice versa.
 	MaxRandomWaitTime time.Duration
 }
 
@@ -86,7 +86,7 @@ func (s *Service) handler(c transport.Conn) error {
 		return err
 	}
 
-	err = sendSuccses(previousConn)
+	err = sendSuccess(previousConn)
 	if err != nil {
 		c.Close()
 		return err
@@ -135,19 +135,19 @@ func (s *Service) handleRelay(
 	}()
 }
 
-// sendFail informes the circut creator that the exist node failed to establish
+// sendFail informs the circuit creator that the exist node failed to establish
 // a connection with the node specified in the request.
 func sendFail(w io.Writer, err error) {
 	w.Write([]byte(err.Error()))
 }
 
-func sendSuccses(w io.Writer) error {
-	_, err := w.Write([]byte(_sucssesResponse))
+func sendSuccess(w io.Writer) error {
+	_, err := w.Write([]byte(_successResponse))
 	return err
 }
 
 func copyWithRandomWait(dst io.Writer, src io.Reader, wait time.Duration) error {
-	size := _defualtPacketSize
+	size := _defaultPacketSize
 	buf := make([]byte, size)
 
 	for {

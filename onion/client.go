@@ -27,9 +27,9 @@ func NewClient(m protocolmux.Muxer, transport transport.Transport) Client {
 	}
 }
 
-func (c Client) EstablishCericut(ctx context.Context, peers []peer.Peer) (transport.Conn, int, error) {
+func (c Client) EstablishCircuit(ctx context.Context, peers []peer.Peer) (transport.Conn, int, error) {
 	if len(peers) == 0 {
-		return nil, 0, errors.New("missing peers to create circut")
+		return nil, 0, errors.New("missing enough peers to create circuit")
 	}
 
 	conn, err := c.transport.Dial(ctx, peers[0])
@@ -50,7 +50,7 @@ func (c Client) EstablishCericut(ctx context.Context, peers []peer.Peer) (transp
 			return nil, 0, errors.New("not implemented")
 		}
 
-		curSecretKey := crypto.NewSymetricEncryptionSecretKey()
+		curSecretKey := crypto.NewSymmetricEncryptionSecretKey()
 		err = sendRequest(transformedConn, Request{
 			SecretKey:         curSecretKey,
 			NextNodeAddr:      peers[i+1].PublicAddr(),
@@ -95,7 +95,7 @@ func readResponse(c *transform.Conn) error {
 		return err
 	}
 
-	if !(string(buf[:n]) == _sucssesResponse) {
+	if !(string(buf[:n]) == _successResponse) {
 		return errors.New(string(buf[:n]))
 	}
 	return nil

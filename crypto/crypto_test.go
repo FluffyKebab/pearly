@@ -15,7 +15,7 @@ import (
 )
 
 func TestSymetricalEncryption(t *testing.T) {
-	encryptor, err := NewSymetricEncryption(NewSymetricEncryptionSecretKey())
+	encryptor, err := NewSymmetricEncryption(NewSymmetricEncryptionSecretKey())
 	require.NoError(t, err)
 
 	msg := "halo this is the mesage that should be the same anyways"
@@ -30,7 +30,7 @@ func TestSymetricalEncryption(t *testing.T) {
 func TestStream(t *testing.T) {
 	d := bytes.NewBuffer(make([]byte, 0))
 
-	s, err := NewEncryptionStream(NewSymetricEncryptionSecretKey(), transport.NewConn(d, d, nil))
+	s, err := NewEncryptionStream(NewSymmetricEncryptionSecretKey(), transport.NewConn(d, d, nil))
 	require.NoError(t, err)
 
 	var msg [1028]byte
@@ -53,8 +53,8 @@ func TestStreamReadBeforeWrite(t *testing.T) {
 	conn, err := c.Dial(context.Background(), peer.New(nil, "localhost:"+port))
 	require.NoError(t, err)
 
-	secretKey1 := NewSymetricEncryptionSecretKey()
-	secretKey2 := NewSymetricEncryptionSecretKey()
+	secretKey1 := NewSymmetricEncryptionSecretKey()
+	secretKey2 := NewSymmetricEncryptionSecretKey()
 	s, err := NewEncryptionStream(secretKey1, conn)
 	require.NoError(t, err)
 	s, err = NewEncryptionStream(secretKey2, s)

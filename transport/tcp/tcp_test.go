@@ -13,10 +13,10 @@ import (
 )
 
 func TestTCPTransport(t *testing.T) {
-	port1, err := testutil.GetAvilablePort()
+	port1, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
-	port2, err := testutil.GetAvilablePort()
+	port2, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
 	client := New(port1)

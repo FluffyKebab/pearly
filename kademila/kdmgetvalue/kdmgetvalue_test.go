@@ -84,7 +84,7 @@ func TestKDMGetValueNoEncryption(t *testing.T) {
 
 func createService(t *testing.T, ctx context.Context) (Service, peer.Peer, <-chan error) {
 	t.Helper()
-	port, err := testutil.GetAvilablePort()
+	port, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
 	transport, err := encrypted.NewTransport(tcp.New(port))
@@ -104,7 +104,7 @@ func createService(t *testing.T, ctx context.Context) (Service, peer.Peer, <-cha
 
 func createServiceNoEncryption(t *testing.T, ctx context.Context) (Service, peer.Peer, <-chan error) {
 	t.Helper()
-	port, err := testutil.GetAvilablePort()
+	port, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
 	transport := tcp.New(port)

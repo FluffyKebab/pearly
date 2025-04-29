@@ -19,7 +19,7 @@ import (
 
 func createProxyServer(t *testing.T) peer.Peer {
 	t.Helper()
-	port, err := testutil.GetAvilablePort()
+	port, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
 	/* transport, err := encrypted.NewTransport(tcp.New(port))
@@ -35,7 +35,7 @@ func createProxyServer(t *testing.T) peer.Peer {
 
 func createProxyClient(t *testing.T, proxyServer peer.Peer) node.Node {
 	t.Helper()
-	port, err := testutil.GetAvilablePort()
+	port, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
 	//transport, err := encrypted.NewTransport(tcp.New(port))

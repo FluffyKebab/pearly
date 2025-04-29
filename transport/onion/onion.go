@@ -18,7 +18,7 @@ var (
 )
 
 type Transport struct {
-	Underlaying  transport.Transport
+	Underlying   transport.Transport
 	Client       onion.Client
 	RelayServers peer.Store
 	NumRelays    int
@@ -45,7 +45,7 @@ func (t *Transport) Dial(ctx context.Context, p peer.Peer) (transport.Conn, erro
 
 	errs := make([]error, 0)
 	for i := 0; i < t.NumRetries; i++ {
-		c, failed, err := t.Client.EstablishCericut(ctx, relays)
+		c, failed, err := t.Client.EstablishCircuit(ctx, relays)
 		if err == nil {
 			return c, nil
 		}
@@ -69,11 +69,11 @@ func (t *Transport) Dial(ctx context.Context, p peer.Peer) (transport.Conn, erro
 }
 
 func (t *Transport) Listen(ctx context.Context) (<-chan transport.Conn, <-chan error, error) {
-	return t.Underlaying.Listen(ctx)
+	return t.Underlying.Listen(ctx)
 }
 
 func (t *Transport) ListenAddr() string {
-	return t.Underlaying.ListenAddr()
+	return t.Underlying.ListenAddr()
 }
 
 func constructErr(errs []error) error {

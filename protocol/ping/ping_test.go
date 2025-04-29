@@ -22,7 +22,7 @@ func createNode(
 ) {
 	t.Helper()
 
-	port, err := testutil.GetAvilablePort()
+	port, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
 	n := basic.New(tcp.New(port), nil)

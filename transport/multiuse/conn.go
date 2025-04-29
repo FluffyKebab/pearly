@@ -32,7 +32,7 @@ func NewConn(connMuxer *ConnMuxer, id string) *Conn {
 	}
 }
 
-func (c *Conn) writeUread(data []byte, closing bool) {
+func (c *Conn) writeUnread(data []byte, closing bool) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.unreadChunks = append(c.unreadChunks, data)
@@ -94,7 +94,7 @@ func (c *Conn) Write(p []byte) (n int, err error) {
 }
 
 func (c *Conn) RemoteAddr() string {
-	if addr, ok := c.connMuxer.underlayingConn.(transport.RemoteAddrHaver); ok {
+	if addr, ok := c.connMuxer.underlyingConn.(transport.RemoteAddrHaver); ok {
 		return addr.RemoteAddr()
 	}
 	return ""

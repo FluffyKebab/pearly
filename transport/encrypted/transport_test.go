@@ -15,10 +15,10 @@ import (
 )
 
 func TestEncryptedTCP(t *testing.T) {
-	port1, err := testutil.GetAvilablePort()
+	port1, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
-	port2, err := testutil.GetAvilablePort()
+	port2, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
 	client, err := NewTransport(tcp.New(port1))
@@ -56,10 +56,10 @@ func TestEncryptedTCP(t *testing.T) {
 }
 
 func TestEncryptedTCPSendAndReciveGOB(t *testing.T) {
-	port1, err := testutil.GetAvilablePort()
+	port1, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
-	port2, err := testutil.GetAvilablePort()
+	port2, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
 	client, err := NewTransport(tcp.New(port1))

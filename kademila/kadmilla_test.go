@@ -178,7 +178,7 @@ func TestBootsrapWithoutNodeID(t *testing.T) {
 func createEncryptedDHTNode(t *testing.T, ctx context.Context) (DHT, <-chan error) {
 	t.Helper()
 
-	port, err := testutil.GetAvilablePort()
+	port, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
 	transport, err := encrypted.NewTransport(tcp.New(port))
@@ -194,7 +194,7 @@ func createEncryptedDHTNode(t *testing.T, ctx context.Context) (DHT, <-chan erro
 func createUncryptedDHTNode(t *testing.T, ctx context.Context, id []byte) (DHT, <-chan error, string) {
 	t.Helper()
 
-	port, err := testutil.GetAvilablePort()
+	port, err := testutil.GetAvailablePort()
 	require.NoError(t, err)
 
 	n := basic.New(tcp.New(port), id)

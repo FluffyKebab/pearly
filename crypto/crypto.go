@@ -21,25 +21,25 @@ type EncryptDecrypter interface {
 	Decrypter
 }
 
-type symetricEncryptor struct {
+type symmetricEncrypter struct {
 	aead cipher.AEAD
 }
 
-func NewSymetricEncryption(secretKey []byte) (symetricEncryptor, error) {
+func NewSymmetricEncryption(secretKey []byte) (symmetricEncrypter, error) {
 	aes, err := aes.NewCipher(secretKey)
 	if err != nil {
-		return symetricEncryptor{}, err
+		return symmetricEncrypter{}, err
 	}
 
 	gcm, err := cipher.NewGCM(aes)
 	if err != nil {
-		return symetricEncryptor{}, err
+		return symmetricEncrypter{}, err
 	}
 
-	return symetricEncryptor{gcm}, nil
+	return symmetricEncrypter{gcm}, nil
 }
 
-func (e symetricEncryptor) Encrypt(plaintext []byte) ([]byte, error) {
+func (e symmetricEncrypter) Encrypt(plaintext []byte) ([]byte, error) {
 	nonce := make([]byte, e.aead.NonceSize())
 	_, err := rand.Read(nonce)
 	if err != nil {
@@ -49,17 +49,17 @@ func (e symetricEncryptor) Encrypt(plaintext []byte) ([]byte, error) {
 	return e.aead.Seal(nonce, nonce, plaintext, nil), nil
 }
 
-func (e symetricEncryptor) Decrypt(chiper []byte) ([]byte, error) {
-	if len(chiper) < e.aead.NonceSize() {
-		return nil, errors.New("chipertext missing nonce")
+func (e symmetricEncrypter) Decrypt(cipher []byte) ([]byte, error) {
+	if len(cipher) < e.aead.NonceSize() {
+		return nil, errors.New("cipher missing nonce")
 	}
 
-	nonce := chiper[:e.aead.NonceSize()]
-	chipertext := chiper[e.aead.NonceSize():]
-	return e.aead.Open(nil, nonce, chipertext, nil)
+	nonce := cipher[:e.aead.NonceSize()]
+	ciphertext := cipher[e.aead.NonceSize():]
+	return e.aead.Open(nil, nonce, ciphertext, nil)
 }
 
-func NewSymetricEncryptionSecretKey() []byte {
+func NewSymmetricEncryptionSecretKey() []byte {
 	key := make([]byte, 32)
 	rand.Read(key)
 	return key
@@ -70,7 +70,7 @@ type stream struct {
 	io.Writer
 }
 
-func NewEncryptionStream(secretKey []byte, underlaying io.ReadWriter) (*stream, error) {
+func NewEncryptionStream(secretKey []byte, underlying io.ReadWriter) (*stream, error) {
 	block, err := aes.NewCipher(secretKey)
 	if err != nil {
 		return nil, err
@@ -80,8 +80,8 @@ func NewEncryptionStream(secretKey []byte, underlaying io.ReadWriter) (*stream, 
 	rs := cipher.NewCTR(block, iv[:])
 	ws := cipher.NewCTR(block, iv[:])
 	return &stream{
-		Reader: cipher.StreamReader{S: rs, R: underlaying},
-		Writer: cipher.StreamWriter{S: ws, W: underlaying},
+		Reader: cipher.StreamReader{S: rs, R: underlying},
+		Writer: cipher.StreamWriter{S: ws, W: underlying},
 	}, nil
 
 }

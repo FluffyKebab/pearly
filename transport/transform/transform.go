@@ -28,8 +28,8 @@ type Conn struct {
 	unreadReadPos  int
 	unreadWritePos int
 
-	packetOwerflow        []byte
-	packetOwerflowWritten int
+	packetOverflow        []byte
+	packetOverflowWritten int
 }
 
 var (
@@ -38,22 +38,22 @@ var (
 	_ io.ByteReader      = &Conn{}
 )
 
-func NewConn(underlayingConn transport.Conn, opts ...Option) *Conn {
-	option := getDefualtOptions()
+func NewConn(underlyingConn transport.Conn, opts ...Option) *Conn {
+	option := getDefaultOptions()
 	for _, opt := range opts {
 		opt(option)
 	}
 
 	return &Conn{
-		reader:         underlayingConn,
-		writer:         underlayingConn,
-		closer:         underlayingConn,
+		reader:         underlyingConn,
+		writer:         underlyingConn,
+		closer:         underlyingConn,
 		Transform:      option.transformer,
 		Detransform:    option.detransformer,
 		maxPacketSize:  option.maxPacketSize,
 		batchSize:      option.batchSize,
 		unread:         make([]byte, _maxPacketSize/2),
-		packetOwerflow: make([]byte, 0),
+		packetOverflow: make([]byte, 0),
 	}
 }
 
@@ -67,7 +67,7 @@ func (c *Conn) Read(p []byte) (int, error) {
 	c.unreadReadPos = 0
 	c.unreadWritePos = 0
 
-	packetSize, err := c.readAtleastOnePacketIntoUnread()
+	packetSize, err := c.readLeastOnePacketIntoUnread()
 	if err != nil {
 		return 0, err
 	}
@@ -84,13 +84,13 @@ func (c *Conn) Read(p []byte) (int, error) {
 	return c.readUnread(p)
 }
 
-func (c *Conn) readAtleastOnePacketIntoUnread() (int, error) {
+func (c *Conn) readLeastOnePacketIntoUnread() (int, error) {
 	var curPacketRead int
 	var err error
 
-	if c.packetOwerflowWritten != 0 {
-		curPacketRead = copy(c.unread, c.packetOwerflow[:c.packetOwerflowWritten])
-		c.packetOwerflowWritten = 0
+	if c.packetOverflowWritten != 0 {
+		curPacketRead = copy(c.unread, c.packetOverflow[:c.packetOverflowWritten])
+		c.packetOverflowWritten = 0
 	} else {
 		curPacketRead, err = c.reader.Read(c.unread)
 		if err != nil {
@@ -110,7 +110,7 @@ func (c *Conn) readAtleastOnePacketIntoUnread() (int, error) {
 		c.unread = append(c.unread, make([]byte, curPacketSize+_lenPacketSize-len(c.unread))...)
 	}
 
-	// Read into unread untill the full packet is read.
+	// Read into unread until the full packet is read.
 	for curPacketRead-_lenPacketSize < curPacketSize {
 		curRead, err := c.reader.Read(c.unread[curPacketRead:])
 		if err != nil {
@@ -123,7 +123,7 @@ func (c *Conn) readAtleastOnePacketIntoUnread() (int, error) {
 	}
 
 	if curPacketRead-_lenPacketSize > curPacketSize {
-		c.writeIntoPacketOwerflow(
+		c.writeIntoPacketOverflow(
 			c.unread[curPacketSize+_lenPacketSize:],
 			curPacketRead-curPacketSize-_lenPacketSize,
 		)
@@ -132,16 +132,16 @@ func (c *Conn) readAtleastOnePacketIntoUnread() (int, error) {
 	return curPacketSize, nil
 }
 
-func (c *Conn) writeIntoPacketOwerflow(data []byte, size int) {
-	if len(c.packetOwerflow) < size {
-		c.packetOwerflow = append(
-			c.packetOwerflow,
-			make([]byte, size-len(c.packetOwerflow))...,
+func (c *Conn) writeIntoPacketOverflow(data []byte, size int) {
+	if len(c.packetOverflow) < size {
+		c.packetOverflow = append(
+			c.packetOverflow,
+			make([]byte, size-len(c.packetOverflow))...,
 		)
 	}
 
-	c.packetOwerflowWritten = copy(c.packetOwerflow, data[:size])
-	c.packetOwerflowWritten = size
+	c.packetOverflowWritten = copy(c.packetOverflow, data[:size])
+	c.packetOverflowWritten = size
 }
 
 func (c *Conn) readUnread(p []byte) (int, error) {
